@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.next/
+.vinext/
+.wrangler/
+.env*
+.DS_Store
+downloads/
+native/Ratio.app/Contents/MacOS/
+native/Ratio.app/Contents/_CodeSignature/
