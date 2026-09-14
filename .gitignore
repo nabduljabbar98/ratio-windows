@@ -8,3 +8,6 @@ dist/
 downloads/
 native/Ratio.app/Contents/MacOS/
 native/Ratio.app/Contents/_CodeSignature/
+native/vendor/
+native/Ratio.app/Contents/Frameworks/
+native/.release/
