@@ -532,6 +532,7 @@ final class UpdateSignInView: NSView {
     var busy = false
     override init(frame: NSRect) {
         super.init(frame: frame)
+        appearance = NSAppearance(named: lightMode ? .aqua : .darkAqua)
         wantsLayer = true; layer?.backgroundColor = panelBackground.cgColor
         for label in [heading, detail, message] { label.font = interfaceFont; label.textColor = panelText; addSubview(label) }
         heading.frame = NSRect(x: 24, y: 287, width: 312, height: 22)
@@ -541,7 +542,7 @@ final class UpdateSignInView: NSView {
         input.isBezeled = false; input.isBordered = false; input.drawsBackground = true
         input.frame = NSRect(x: 24, y: 179, width: 312, height: 26)
         input.font = interfaceFont; input.textColor = panelText; input.backgroundColor = selectionBackground
-        input.placeholderString = "Purchase email"; input.focusRingType = .none
+        input.placeholderAttributedString = NSAttributedString(string: "Purchase email", attributes: [.font: interfaceFont, .foregroundColor: NSColor(calibratedWhite: lightMode ? 0.40 : 0.62, alpha: 1)]); input.focusRingType = .none
         input.target = self; input.action = #selector(send); addSubview(input)
         codeInput.isHidden = true; codeInput.onSubmit = { [weak self] in self?.send() }; addSubview(codeInput)
         message.frame = NSRect(x: 24, y: 65, width: 312, height: 76); message.textColor = .gray
@@ -556,7 +557,7 @@ final class UpdateSignInView: NSView {
             challenge = nil; codeInput.isHidden = true; codeInput.clear(); input.isHidden = false
             window?.makeFirstResponder(input)
             heading.stringValue = "SIGN IN FOR UPDATES"; detail.stringValue = "Use the email you purchased Ratio with."
-            input.stringValue = ""; input.placeholderString = "Purchase email"; submit.title = "SEND CODE"; back.title = "LATER"; message.stringValue = ""
+            input.stringValue = ""; input.placeholderAttributedString = NSAttributedString(string: "Purchase email", attributes: [.font: interfaceFont, .foregroundColor: NSColor(calibratedWhite: lightMode ? 0.40 : 0.62, alpha: 1)]); submit.title = "SEND CODE"; back.title = "LATER"; message.stringValue = ""
         } else { onClose?() }
     }
     @objc func send() {
