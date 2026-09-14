@@ -462,16 +462,6 @@ struct UpdateCredential: Codable {
     }
 }
 
-final class CompactInputCell: NSTextFieldCell {
-    override func drawingRect(forBounds rect: NSRect) -> NSRect {
-        var result = super.drawingRect(forBounds: rect)
-        let height = min(result.height, cellSize.height)
-        result.origin.y += (result.height - height) / 2
-        result.size.height = height
-        return result
-    }
-}
-
 final class CodeInputView: NSView, NSTextFieldDelegate {
     var fields: [NSTextField] = []
     var onSubmit: (() -> Void)?
@@ -479,11 +469,10 @@ final class CodeInputView: NSView, NSTextFieldDelegate {
     override init(frame: NSRect) {
         super.init(frame: frame)
         for index in 0..<6 {
-            let field = NSTextField(frame: NSRect(x: CGFloat(index) * 42, y: 0, width: 34, height: 30))
-            field.cell = CompactInputCell(textCell: "")
+            let field = NSTextField(frame: NSRect(x: CGFloat(index) * 42, y: 5, width: 34, height: 20))
             field.isEditable = true; field.isSelectable = true
-            field.font = interfaceFont; field.alignment = .center
-            field.isBezeled = false; field.isBordered = false; field.drawsBackground = true
+            field.font = NSFont.monospacedSystemFont(ofSize: 16, weight: .medium); field.alignment = .center
+            field.isBezeled = false; field.isBordered = false; field.drawsBackground = false
             field.backgroundColor = selectionBackground; field.textColor = panelText
             field.focusRingType = .none; field.delegate = self
             field.setAccessibilityLabel("Code digit \(index + 1) of 6")
@@ -491,6 +480,12 @@ final class CodeInputView: NSView, NSTextFieldDelegate {
         }
     }
     required init?(coder: NSCoder) { fatalError() }
+    override func draw(_ dirtyRect: NSRect) {
+        selectionBackground.setFill()
+        for index in 0..<6 {
+            NSRect(x: CGFloat(index) * 42, y: 0, width: 34, height: 30).fill()
+        }
+    }
     func clear() { fields.forEach { $0.stringValue = "" } }
     func focus() { window?.makeFirstResponder(fields[0]) }
     func controlTextDidChange(_ notification: Notification) {
@@ -522,6 +517,7 @@ final class UpdateSignInView: NSView {
     let heading = NSTextField(labelWithString: "SIGN IN FOR UPDATES")
     let detail = NSTextField(wrappingLabelWithString: "Use the email you purchased Ratio with.")
     let input = NSTextField()
+    var emailBackground: NSView!
     let codeInput = CodeInputView(frame: NSRect(x: 24, y: 175, width: 244, height: 30))
     let message = NSTextField(wrappingLabelWithString: "")
     let submit = GridButton(title: "SEND CODE", target: nil, action: nil)
@@ -537,12 +533,14 @@ final class UpdateSignInView: NSView {
         for label in [heading, detail, message] { label.font = interfaceFont; label.textColor = panelText; addSubview(label) }
         heading.frame = NSRect(x: 24, y: 287, width: 312, height: 22)
         detail.frame = NSRect(x: 24, y: 225, width: 312, height: 44)
-        input.cell = CompactInputCell(textCell: "")
+        emailBackground = NSView(frame: NSRect(x: 24, y: 179, width: 312, height: 26))
+        emailBackground.wantsLayer = true; emailBackground.layer?.backgroundColor = selectionBackground.cgColor
+        addSubview(emailBackground)
         input.isEditable = true; input.isSelectable = true
-        input.isBezeled = false; input.isBordered = false; input.drawsBackground = true
-        input.frame = NSRect(x: 24, y: 179, width: 312, height: 26)
-        input.font = interfaceFont; input.textColor = panelText; input.backgroundColor = selectionBackground
-        input.placeholderAttributedString = NSAttributedString(string: "Purchase email", attributes: [.font: interfaceFont, .foregroundColor: NSColor(calibratedWhite: lightMode ? 0.40 : 0.62, alpha: 1)]); input.focusRingType = .none
+        input.isBezeled = false; input.isBordered = false; input.drawsBackground = false
+        input.frame = NSRect(x: 28, y: 182, width: 304, height: 20)
+        input.font = NSFont.monospacedSystemFont(ofSize: 15, weight: .regular); input.textColor = panelText; input.backgroundColor = selectionBackground
+        input.placeholderAttributedString = NSAttributedString(string: "Purchase email", attributes: [.font: NSFont.monospacedSystemFont(ofSize: 15, weight: .regular), .foregroundColor: NSColor(calibratedWhite: lightMode ? 0.40 : 0.62, alpha: 1)]); input.focusRingType = .none
         input.target = self; input.action = #selector(send); addSubview(input)
         codeInput.isHidden = true; codeInput.onSubmit = { [weak self] in self?.send() }; addSubview(codeInput)
         message.frame = NSRect(x: 24, y: 65, width: 312, height: 76); message.textColor = .gray
@@ -554,10 +552,10 @@ final class UpdateSignInView: NSView {
     @objc func goBack() {
         guard !busy else { return }
         if challenge != nil {
-            challenge = nil; codeInput.isHidden = true; codeInput.clear(); input.isHidden = false
+            challenge = nil; codeInput.isHidden = true; codeInput.clear(); input.isHidden = false; emailBackground.isHidden = false
             window?.makeFirstResponder(input)
             heading.stringValue = "SIGN IN FOR UPDATES"; detail.stringValue = "Use the email you purchased Ratio with."
-            input.stringValue = ""; input.placeholderAttributedString = NSAttributedString(string: "Purchase email", attributes: [.font: interfaceFont, .foregroundColor: NSColor(calibratedWhite: lightMode ? 0.40 : 0.62, alpha: 1)]); submit.title = "SEND CODE"; back.title = "LATER"; message.stringValue = ""
+            input.stringValue = ""; input.placeholderAttributedString = NSAttributedString(string: "Purchase email", attributes: [.font: NSFont.monospacedSystemFont(ofSize: 15, weight: .regular), .foregroundColor: NSColor(calibratedWhite: lightMode ? 0.40 : 0.62, alpha: 1)]); submit.title = "SEND CODE"; back.title = "LATER"; message.stringValue = ""
         } else { onClose?() }
     }
     @objc func send() {
@@ -591,7 +589,7 @@ final class UpdateSignInView: NSView {
                     guard let id = result["challengeId"] as? String else { self.message.stringValue = "Please try again."; return }
                     self.challenge = id; self.heading.stringValue = "CHECK YOUR EMAIL"
                     self.detail.stringValue = "If this email has a Ratio purchase, a six-digit code is on its way."
-                    self.input.isHidden = true; self.codeInput.clear(); self.codeInput.isHidden = false; self.submit.title = "VERIFY CODE"; self.back.title = "BACK"
+                    self.input.isHidden = true; self.emailBackground.isHidden = true; self.codeInput.clear(); self.codeInput.isHidden = false; self.submit.title = "VERIFY CODE"; self.back.title = "BACK"
                     self.message.stringValue = "Code expires in 10 minutes. Check spam, or go back to request another code."
                     self.codeInput.focus()
                 }
