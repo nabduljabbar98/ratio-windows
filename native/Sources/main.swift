@@ -462,10 +462,67 @@ struct UpdateCredential: Codable {
     }
 }
 
+final class CompactInputCell: NSTextFieldCell {
+    override func drawingRect(forBounds rect: NSRect) -> NSRect {
+        var result = super.drawingRect(forBounds: rect)
+        let height = min(result.height, cellSize.height)
+        result.origin.y += (result.height - height) / 2
+        result.size.height = height
+        return result
+    }
+}
+
+final class CodeInputView: NSView, NSTextFieldDelegate {
+    var fields: [NSTextField] = []
+    var onSubmit: (() -> Void)?
+    var stringValue: String { fields.map { $0.stringValue }.joined() }
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        for index in 0..<6 {
+            let field = NSTextField(frame: NSRect(x: CGFloat(index) * 42, y: 0, width: 34, height: 30))
+            field.cell = CompactInputCell(textCell: "")
+            field.isEditable = true; field.isSelectable = true
+            field.font = interfaceFont; field.alignment = .center
+            field.isBezeled = false; field.isBordered = false; field.drawsBackground = true
+            field.backgroundColor = selectionBackground; field.textColor = panelText
+            field.focusRingType = .none; field.delegate = self
+            field.setAccessibilityLabel("Code digit \(index + 1) of 6")
+            fields.append(field); addSubview(field)
+        }
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    func clear() { fields.forEach { $0.stringValue = "" } }
+    func focus() { window?.makeFirstResponder(fields[0]) }
+    func controlTextDidChange(_ notification: Notification) {
+        guard let field = notification.object as? NSTextField,
+              let index = fields.firstIndex(of: field) else { return }
+        let digits = field.stringValue.filter { $0 >= "0" && $0 <= "9" }
+        if digits.isEmpty { field.stringValue = ""; return }
+        // A full pasted code fills every slot, regardless of the current focus.
+        let start = digits.count >= 6 ? 0 : index
+        let characters = Array(digits.prefix(6))
+        for (offset, digit) in characters.enumerated() where start + offset < 6 {
+            fields[start + offset].stringValue = String(digit)
+        }
+        let next = min(5, start + characters.count)
+        window?.makeFirstResponder(fields[next]); fields[next].selectText(nil)
+    }
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+        if selector == #selector(NSResponder.insertNewline(_:)) { onSubmit?(); return true }
+        if selector == #selector(NSResponder.deleteBackward(_:)),
+           let field = control as? NSTextField, field.stringValue.isEmpty,
+           let index = fields.firstIndex(of: field), index > 0 {
+            fields[index - 1].stringValue = ""; window?.makeFirstResponder(fields[index - 1]); return true
+        }
+        return false
+    }
+}
+
 final class UpdateSignInView: NSView {
     let heading = NSTextField(labelWithString: "SIGN IN FOR UPDATES")
     let detail = NSTextField(wrappingLabelWithString: "Use the email you purchased Ratio with.")
     let input = NSTextField()
+    let codeInput = CodeInputView(frame: NSRect(x: 24, y: 175, width: 244, height: 30))
     let message = NSTextField(wrappingLabelWithString: "")
     let submit = GridButton(title: "SEND CODE", target: nil, action: nil)
     let back = GridButton(title: "LATER", target: nil, action: nil)
@@ -479,10 +536,14 @@ final class UpdateSignInView: NSView {
         for label in [heading, detail, message] { label.font = interfaceFont; label.textColor = panelText; addSubview(label) }
         heading.frame = NSRect(x: 24, y: 287, width: 312, height: 22)
         detail.frame = NSRect(x: 24, y: 225, width: 312, height: 44)
-        input.frame = NSRect(x: 24, y: 173, width: 312, height: 32)
+        input.cell = CompactInputCell(textCell: "")
+        input.isEditable = true; input.isSelectable = true
+        input.isBezeled = false; input.isBordered = false; input.drawsBackground = true
+        input.frame = NSRect(x: 24, y: 179, width: 312, height: 26)
         input.font = interfaceFont; input.textColor = panelText; input.backgroundColor = selectionBackground
         input.placeholderString = "Purchase email"; input.focusRingType = .none
         input.target = self; input.action = #selector(send); addSubview(input)
+        codeInput.isHidden = true; codeInput.onSubmit = { [weak self] in self?.send() }; addSubview(codeInput)
         message.frame = NSRect(x: 24, y: 65, width: 312, height: 76); message.textColor = .gray
         submit.frame = NSRect(x: 0, y: 0, width: 240, height: 44); back.frame = NSRect(x: 240, y: 0, width: 120, height: 44)
         for b in [submit, back] { b.isBordered = false; b.setButtonType(.momentaryPushIn); b.target = self; addSubview(b) }
@@ -492,13 +553,15 @@ final class UpdateSignInView: NSView {
     @objc func goBack() {
         guard !busy else { return }
         if challenge != nil {
-            challenge = nil; heading.stringValue = "SIGN IN FOR UPDATES"; detail.stringValue = "Use the email you purchased Ratio with."
+            challenge = nil; codeInput.isHidden = true; codeInput.clear(); input.isHidden = false
+            window?.makeFirstResponder(input)
+            heading.stringValue = "SIGN IN FOR UPDATES"; detail.stringValue = "Use the email you purchased Ratio with."
             input.stringValue = ""; input.placeholderString = "Purchase email"; submit.title = "SEND CODE"; back.title = "LATER"; message.stringValue = ""
         } else { onClose?() }
     }
     @objc func send() {
         guard !busy else { return }
-        let value = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = challenge == nil ? input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) : codeInput.stringValue
         if challenge != nil && value.range(of: "^[0-9]{6}$", options: .regularExpression) == nil { message.stringValue = "Enter the six-digit code from your email."; return }
         if challenge == nil && (value.count > 254 || value.range(of: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", options: .regularExpression) == nil) { message.stringValue = "Enter your purchase email."; return }
         let verifying = challenge != nil
@@ -527,9 +590,9 @@ final class UpdateSignInView: NSView {
                     guard let id = result["challengeId"] as? String else { self.message.stringValue = "Please try again."; return }
                     self.challenge = id; self.heading.stringValue = "CHECK YOUR EMAIL"
                     self.detail.stringValue = "If this email has a Ratio purchase, a six-digit code is on its way."
-                    self.input.stringValue = ""; self.input.placeholderString = "000000"; self.submit.title = "VERIFY CODE"; self.back.title = "BACK"
+                    self.input.isHidden = true; self.codeInput.clear(); self.codeInput.isHidden = false; self.submit.title = "VERIFY CODE"; self.back.title = "BACK"
                     self.message.stringValue = "Code expires in 10 minutes. Check spam, or go back to request another code."
-                    self.window?.makeFirstResponder(self.input)
+                    self.codeInput.focus()
                 }
             }
         }.resume()
