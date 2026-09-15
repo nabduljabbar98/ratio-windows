@@ -139,6 +139,5 @@ export default function Home({initialWallpaper}:{initialWallpaper:string}){
       <div className="panel-footer"><button onClick={()=>dispatch({type:'pause'})}>{s.paused?'RESUME':'PAUSE'}</button><button aria-label="Reset the entire demo" onClick={resetDemo}>RESET</button><button onClick={()=>dispatch({type:'quit'})}>QUIT</button></div>
     </aside>}
     <div className="desktop-caption"><button className="reset" onClick={resetDemo}>RESET DEMO ↺</button></div>
-    <nav className="dock" aria-label="Switch demo apps">{applications.map(app=>{const Icon=app.icon;return <button key={app.id} aria-label={`Switch to ${app.name}`} aria-pressed={s.active===app.id} onClick={()=>dispatch({type:'switch',id:app.id})}><Icon size={26} strokeWidth={1.4}/><span>{app.name}</span><i className={s.active===app.id?'on':''}/></button>})}</nav>
   </main>
 }
