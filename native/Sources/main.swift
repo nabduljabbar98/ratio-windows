@@ -203,10 +203,11 @@ final class ReviewButton: GridButton {
         (state == .on || isHighlighted ? selectionBackground : panelBackground).setFill()
         NSBezierPath(rect: bounds).fill()
         let color: NSColor = hasCategory && state != .on ? NSColor(white: 0.4, alpha: 1) : (mode == "create" ? createColor : mode == "consume" ? consumeColor : state == .on ? panelText : NSColor(white: 0.55, alpha: 1))
-        let buttonFont = mode == "neutral" ? NSFont.monospacedSystemFont(ofSize: 11, weight: .regular) : NSFont.monospacedSystemFont(ofSize: 11, weight: state == .on ? .semibold : .regular)
-        let attrs: [NSAttributedString.Key: Any] = [.font: buttonFont, .foregroundColor: color]
+        let attrs: [NSAttributedString.Key: Any] = [.font: interfaceFont, .foregroundColor: color]
         let text = title as NSString; let size = text.size(withAttributes: attrs)
-        text.draw(at: NSPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2), withAttributes: attrs)
+        let origin = NSPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2)
+        text.draw(at: origin, withAttributes: attrs)
+        if state == .on { text.draw(at: NSPoint(x: origin.x + 0.35, y: origin.y), withAttributes: attrs) }
         // Row separators belong to the list; each control owns only its left edge.
         let pixel = 1 / (window?.backingScaleFactor ?? 2)
         hairline(NSRect(x: 0, y: 0, width: pixel, height: bounds.height))
