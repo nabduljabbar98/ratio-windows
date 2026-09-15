@@ -169,7 +169,7 @@ final class ReviewButton: GridButton {
         (state == .on || isHighlighted ? selectionBackground : panelBackground).setFill()
         NSBezierPath(rect: bounds).fill()
         let color: NSColor = hasCategory && state != .on ? NSColor(white: 0.4, alpha: 1) : (mode == "create" ? createColor : mode == "consume" ? consumeColor : state == .on ? panelText : NSColor(white: 0.55, alpha: 1))
-        let buttonFont = mode == "neutral" ? NSFont.monospacedSystemFont(ofSize: 11, weight: .regular) : interfaceFont
+        let buttonFont = mode == "neutral" ? NSFont.monospacedSystemFont(ofSize: 11, weight: .regular) : NSFont.monospacedSystemFont(ofSize: 11, weight: state == .on ? .semibold : .regular)
         let attrs: [NSAttributedString.Key: Any] = [.font: buttonFont, .foregroundColor: color]
         let text = title as NSString; let size = text.size(withAttributes: attrs)
         text.draw(at: NSPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2), withAttributes: attrs)
@@ -191,7 +191,6 @@ final class HistoryListView: NSView {
         let entries = owner.historyEntries()
         let pixel = 1 / (window?.backingScaleFactor ?? 2)
         let labelAttrs: [NSAttributedString.Key: Any] = [.font: interfaceFont, .foregroundColor: NSColor.gray]
-        let ratioAttrs: [NSAttributedString.Key: Any] = [.font: interfaceFont, .foregroundColor: panelText]
         if entries.isEmpty { ("NO HISTORY YET" as NSString).draw(at: NSPoint(x: 16, y: 14), withAttributes: labelAttrs) }
         for (index, entry) in entries.enumerated() {
             let y = CGFloat(index * 44)
@@ -202,6 +201,8 @@ final class HistoryListView: NSView {
             createColor.setFill(); NSBezierPath(rect: NSRect(x: 84, y: y + 21, width: 164 * fraction, height: 2)).fill()
             let create = total > 0 ? Int((fraction * 100).rounded()) : 0
             let ratio = total > 0 ? "\(create)/\(100 - create)" : "—/—"
+            let ratioColor = total == 0 ? panelText : (create > 50 ? createColor : (create < 50 ? consumeColor : panelText))
+            let ratioAttrs: [NSAttributedString.Key: Any] = [.font: interfaceFont, .foregroundColor: ratioColor]
             let text = ratio as NSString
             text.draw(at: NSPoint(x: 344 - text.size(withAttributes: ratioAttrs).width, y: y + 13), withAttributes: ratioAttrs)
             hairline(NSRect(x: 0, y: y + 44 - pixel, width: bounds.width, height: pixel))
@@ -412,9 +413,13 @@ final class RatioView: NSView {
             historyList.owner = owner
             let count = owner?.historyEntries().count ?? 0
             trackedTotal.stringValue = "\(count) DAY\(count == 1 ? "" : "S")"
+            trackedTotal.frame = NSRect(x: 180, y: 277, width: 164, height: 18)
             historyList.setFrameSize(NSSize(width: 360, height: max(220, count * 44)))
             historyList.needsDisplay = true
-        } else { notifications.isHidden = false }
+        } else {
+            notifications.isHidden = false
+            trackedTotal.frame = NSRect(x: 180, y: 277, width: 84, height: 18)
+        }
         let count = owner?.pendingSites.count ?? 0
         notifications.title = count > 0 ? "! \(count)" : "✓"
         notifications.needsAttention = count > 0
