@@ -161,8 +161,9 @@ final class ReviewButton: GridButton {
     override func draw(_ dirtyRect: NSRect) {
         (state == .on || isHighlighted ? selectionBackground : panelBackground).setFill()
         NSBezierPath(rect: bounds).fill()
-        let color: NSColor = hasCategory && state != .on ? NSColor(white: 0.4, alpha: 1) : (mode == "create" ? createColor : mode == "consume" ? consumeColor : NSColor(white: 0.55, alpha: 1))
-        let attrs: [NSAttributedString.Key: Any] = [.font: interfaceFont, .foregroundColor: color]
+        let color: NSColor = hasCategory && state != .on ? NSColor(white: 0.4, alpha: 1) : (mode == "create" ? createColor : mode == "consume" ? consumeColor : state == .on ? panelText : NSColor(white: 0.55, alpha: 1))
+        let buttonFont = mode == "neutral" ? NSFont.monospacedSystemFont(ofSize: 8, weight: .regular) : interfaceFont
+        let attrs: [NSAttributedString.Key: Any] = [.font: buttonFont, .foregroundColor: color]
         let text = title as NSString; let size = text.size(withAttributes: attrs)
         text.draw(at: NSPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2), withAttributes: attrs)
         // Row separators belong to the list; each control owns only its left edge.
@@ -390,16 +391,25 @@ final class RatioView: NSView {
                 let time = NSTextField(labelWithString: owner?.duration(row.value.seconds) ?? "")
                 time.identifier = NSUserInterfaceItemIdentifier(row.key)
                 time.font = interfaceFont; time.textColor = panelText; time.alignment = .right
-                time.frame = NSRect(x: 136, y: y + 13, width: 84, height: 18); reviewList.addSubview(time)
-                for (j, mode) in ["create", "neutral", "consume"].enumerated() {
-                    let button = ReviewButton(title: mode == "consume" ? "↓" : mode == "neutral" ? "—" : "↑", target: owner, action: #selector(AppDelegate.reviewSite(_:)))
+                let ignore = ReviewButton(title: "IGNORE", target: owner, action: #selector(AppDelegate.reviewSite(_:)))
+                ignore.siteID = row.key; ignore.mode = "neutral"
+                ignore.font = NSFont.monospacedSystemFont(ofSize: 8, weight: .regular)
+                ignore.state = selectedMode(row.key) == "neutral" ? .on : .off
+                ignore.hasCategory = selectedMode(row.key) != nil
+                ignore.isBordered = false; ignore.toolTip = "Exclude from ratio"
+                ignore.setAccessibilityLabel("Ignore in ratio: " + row.value.name)
+                ignore.frame = NSRect(x: 136, y: y, width: 52, height: 44)
+                reviewList.addSubview(ignore)
+                time.frame = NSRect(x: 184, y: y + 13, width: 80, height: 18); reviewList.addSubview(time)
+                for (j, mode) in ["create", "consume"].enumerated() {
+                    let button = ReviewButton(title: mode == "consume" ? "↓" : "↑", target: owner, action: #selector(AppDelegate.reviewSite(_:)))
                     button.siteID = row.key; button.mode = mode; button.font = interfaceFont
                     button.state = selectedMode(row.key) == mode ? .on : .off
                     button.hasCategory = selectedMode(row.key) != nil
                     button.isBordered = false; button.contentTintColor = .white
-                    button.toolTip = mode == "create" ? "Create" : mode == "neutral" ? "Neutral" : "Consume"
-                    button.setAccessibilityLabel((mode == "create" ? "Create: " : mode == "neutral" ? "Neutral: " : "Consume: ") + row.value.name)
-                    button.frame = NSRect(x: 228 + CGFloat(j * 44), y: y, width: 44, height: 44)
+                    button.toolTip = mode == "create" ? "Create" : "Consume"
+                    button.setAccessibilityLabel((mode == "create" ? "Create: " : "Consume: ") + row.value.name)
+                    button.frame = NSRect(x: 272 + CGFloat(j * 44), y: y, width: 44, height: 44)
                     reviewList.addSubview(button)
                 }
                 let pixel = 1 / (window?.backingScaleFactor ?? 2)
