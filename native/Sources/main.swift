@@ -53,6 +53,12 @@ struct Ledger: Codable {
 
 
 }
+
+struct DaySummary: Codable {
+    var day: String
+    var create: Double
+    var consume: Double
+}
 func dayKey(_ date: Date = Date()) -> String {
     let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date)
 }
@@ -176,6 +182,33 @@ final class ReviewListView: NSView {
     override var isFlipped: Bool { true }
 }
 
+final class HistoryListView: NSView {
+    weak var owner: AppDelegate?
+    override var isFlipped: Bool { true }
+    override func draw(_ dirtyRect: NSRect) {
+        panelBackground.setFill(); NSBezierPath(rect: bounds).fill()
+        guard let owner = owner else { return }
+        let entries = owner.historyEntries()
+        let pixel = 1 / (window?.backingScaleFactor ?? 2)
+        let labelAttrs: [NSAttributedString.Key: Any] = [.font: interfaceFont, .foregroundColor: NSColor.gray]
+        let ratioAttrs: [NSAttributedString.Key: Any] = [.font: interfaceFont, .foregroundColor: panelText]
+        if entries.isEmpty { ("NO HISTORY YET" as NSString).draw(at: NSPoint(x: 16, y: 14), withAttributes: labelAttrs) }
+        for (index, entry) in entries.enumerated() {
+            let y = CGFloat(index * 44)
+            (owner.shortDay(entry.day) as NSString).draw(at: NSPoint(x: 16, y: y + 13), withAttributes: labelAttrs)
+            let total = entry.create + entry.consume
+            let fraction = total > 0 ? entry.create / total : 0.5
+            consumeColor.setFill(); NSBezierPath(rect: NSRect(x: 84, y: y + 21, width: 164, height: 2)).fill()
+            createColor.setFill(); NSBezierPath(rect: NSRect(x: 84, y: y + 21, width: 164 * fraction, height: 2)).fill()
+            let create = total > 0 ? Int((fraction * 100).rounded()) : 0
+            let ratio = total > 0 ? "\(create)/\(100 - create)" : "—/—"
+            let text = ratio as NSString
+            text.draw(at: NSPoint(x: 344 - text.size(withAttributes: ratioAttrs).width, y: y + 13), withAttributes: ratioAttrs)
+            hairline(NSRect(x: 0, y: y + 44 - pixel, width: bounds.width, height: pixel))
+        }
+    }
+}
+
 final class CaretDividerView: NSView {
     weak var panel: NSView?
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -229,6 +262,9 @@ final class RatioView: NSView {
     let appList = AppListView(frame: .zero)
     let reviewList = ReviewListView(frame: .zero)
     let reviewScroll = NSScrollView()
+    let historyScroll = NSScrollView()
+    let historyList = HistoryListView(frame: .zero)
+    var showingHistory = false
     let reviewButton = GridButton(title: "Review sites", target: nil, action: nil)
     var reviewSignature = ""
     var showingApps: Bool { selectedTab == 1 }
@@ -240,13 +276,14 @@ final class RatioView: NSView {
     let consume = GridButton(title: "↓ Consume", target: nil, action: #selector(AppDelegate.chooseConsume))
     let create = GridButton(title: "↑ Create", target: nil, action: #selector(AppDelegate.chooseCreate))
     let pause = GridButton(title: "Pause", target: nil, action: #selector(AppDelegate.togglePause))
+    let history = GridButton(title: "◷", target: nil, action: nil)
     let forget = GridButton(title: "Reset", target: nil, action: #selector(AppDelegate.resetAll))
     let theme = GridButton(title: "☀", target: nil, action: #selector(toggleTheme))
     let quit = GridButton(title: "Quit", target: NSApp, action: #selector(NSApplication.terminate(_:)))
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true; layer?.backgroundColor = panelBackground.cgColor
-        for button in [ratioTab, appsTab, consume, create, pause, forget, quit, theme] {
+        for button in [ratioTab, appsTab, consume, create, pause, history, forget, quit, theme] {
             button.font = interfaceFont; button.isBordered = false; button.setButtonType(.momentaryPushIn); addSubview(button)
         }
         ratioTab.target = self; ratioTab.action = #selector(showRatio)
@@ -277,11 +314,15 @@ final class RatioView: NSView {
         create.frame = NSRect(x: 0, y: 108, width: 180, height: 44)
         consume.frame = NSRect(x: 180, y: 108, width: 180, height: 44)
         pause.frame = NSRect(x: 0, y: 0, width: 44, height: 44)
-        forget.frame = NSRect(x: 44, y: 0, width: 136, height: 44)
-        quit.frame = NSRect(x: 180, y: 0, width: 136, height: 44)
+        history.frame = NSRect(x: 44, y: 0, width: 44, height: 44)
+        history.target = self; history.action = #selector(toggleHistory)
+        history.invertsWhenHighlighted = false
+        history.toolTip = "History"; history.setAccessibilityLabel("Show history")
+        forget.frame = NSRect(x: 88, y: 0, width: 114, height: 44)
+        quit.frame = NSRect(x: 202, y: 0, width: 114, height: 44)
         theme.frame = NSRect(x: 316, y: 0, width: 44, height: 44)
         theme.target = self; theme.drawsGridEdges = false; theme.invertsWhenHighlighted = false
-        pause.drawsBottomEdge = false; forget.drawsBottomEdge = false
+        pause.drawsBottomEdge = false; history.drawsBottomEdge = false; forget.drawsBottomEdge = false
         quit.drawsBottomEdge = false
         appScroll.frame = NSRect(x: 0, y: 108, width: 360, height: 244)
         appScroll.drawsBackground = false; appScroll.hasVerticalScroller = true; appScroll.scrollerStyle = .overlay
@@ -289,6 +330,9 @@ final class RatioView: NSView {
         reviewScroll.frame = NSRect(x: 0, y: 44, width: 360, height: 220); reviewScroll.drawsBackground = false
         reviewScroll.hasVerticalScroller = true; reviewScroll.scrollerStyle = .overlay
         reviewScroll.documentView = reviewList; addSubview(reviewScroll); reviewScroll.isHidden = true
+        historyScroll.frame = NSRect(x: 0, y: 44, width: 360, height: 220); historyScroll.drawsBackground = false
+        historyScroll.hasVerticalScroller = true; historyScroll.scrollerStyle = .overlay
+        historyList.owner = owner; historyScroll.documentView = historyList; addSubview(historyScroll); historyScroll.isHidden = true
         reviewButton.frame = NSRect(x: 0, y: 44, width: 360, height: 64)
         reviewButton.target = self; reviewButton.action = #selector(showReview); addSubview(reviewButton)
         reviewButton.isHidden = true
@@ -348,13 +392,29 @@ final class RatioView: NSView {
     @objc func showReview() { selectedTab = 2; owner?.render() }
     @objc func showRatio() { selectedTab = 0; owner?.render() }
     @objc func showApps() { selectedTab = 1; owner?.render() }
+    @objc func toggleHistory() {
+        showingHistory.toggle()
+        history.setAccessibilityLabel(showingHistory ? "Show activity" : "Show history")
+        owner?.render()
+    }
     func refreshApps() {
         selectedTab = 0
         ratioTab.isHidden = true; appsTab.isHidden = true
         totals.isHidden = true; context.isHidden = false
         consume.isHidden = true; create.isHidden = true
-        appScroll.isHidden = true; reviewScroll.isHidden = false
+        appScroll.isHidden = true; reviewScroll.isHidden = showingHistory
+        historyScroll.isHidden = !showingHistory
         reviewButton.isHidden = true; note.isHidden = true
+        history.state = showingHistory ? .on : .off
+        if showingHistory {
+            context.stringValue = "HISTORY"
+            notifications.isHidden = true
+            historyList.owner = owner
+            let count = owner?.historyEntries().count ?? 0
+            trackedTotal.stringValue = "\(count) DAY\(count == 1 ? "" : "S")"
+            historyList.setFrameSize(NSSize(width: 360, height: max(220, count * 44)))
+            historyList.needsDisplay = true
+        } else { notifications.isHidden = false }
         let count = owner?.pendingSites.count ?? 0
         notifications.title = count > 0 ? "! \(count)" : "✓"
         notifications.needsAttention = count > 0
@@ -424,7 +484,7 @@ final class RatioView: NSView {
         ratioTab.state = selectedTab == 0 ? .on : .off; appsTab.state = selectedTab == 0 ? .off : .on
         let height = max(244, (owner?.ledger.apps?.count ?? 0) * 56)
         appList.setFrameSize(NSSize(width: 360, height: height)); appList.needsDisplay = true
-        for button in [ratioTab, appsTab, consume, create, pause, forget, quit, theme] { button.needsDisplay = true }
+        for button in [ratioTab, appsTab, consume, create, pause, history, forget, quit, theme] { button.needsDisplay = true }
     }
     required init?(coder: NSCoder) { fatalError() }
     override func draw(_ dirtyRect: NSRect) {
@@ -616,6 +676,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var updaterStarted = false
     var signInView: UpdateSignInView?
     var ledger = Ledger(day: dayKey())
+    var history: [DaySummary] = []
     var rules: [String: String] = [:]
     var status: NSStatusItem!
     let popover = NSPopover()
@@ -665,6 +726,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ]
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let data = defaults.data(forKey: "ledger"), let saved = try? JSONDecoder().decode(Ledger.self, from: data) { ledger = saved }
+        if let data = defaults.data(forKey: "history"), let saved = try? JSONDecoder().decode([DaySummary].self, from: data) { history = saved }
         rules = (defaults.dictionary(forKey: "rules") as? [String: String] ?? [:]).filter { $0.value != "neutral" }
         // Migrate existing per-app history to explicit category contributions.
         if let history = ledger.apps, history.values.contains(where: { $0.createSeconds == nil || $0.consumeSeconds == nil }) {
@@ -728,11 +790,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     func rollover() {
         let today = dayKey()
-        if ledger.day != today { save(); ledger = Ledger(day: today) }
+        if ledger.day != today {
+            if ledger.create + ledger.consume > 0 {
+                history.removeAll { $0.day == ledger.day }
+                history.append(DaySummary(day: ledger.day, create: ledger.create, consume: ledger.consume))
+                history = Array(history.sorted { $0.day > $1.day }.prefix(30))
+            }
+            ledger = Ledger(day: today); save()
+        }
     }
     func save() {
         if let data = try? JSONEncoder().encode(ledger) { defaults.set(data, forKey: "ledger") }
+        if let data = try? JSONEncoder().encode(history) { defaults.set(data, forKey: "history") }
         defaults.set(rules, forKey: "rules")
+    }
+    func historyEntries() -> [DaySummary] {
+        var entries = history.filter { $0.day != ledger.day }
+        if ledger.create + ledger.consume > 0 { entries.append(DaySummary(day: ledger.day, create: ledger.create, consume: ledger.consume)) }
+        return Array(entries.sorted { $0.day > $1.day }.prefix(30))
+    }
+    func shortDay(_ value: String) -> String {
+        let input = DateFormatter(); input.locale = Locale(identifier: "en_US_POSIX"); input.dateFormat = "yyyy-MM-dd"
+        guard let date = input.date(from: value) else { return value }
+        let output = DateFormatter(); output.locale = Locale(identifier: "en_US_POSIX"); output.dateFormat = value == dayKey() ? "'TODAY'" : "MMM d"
+        return output.string(from: date).uppercased()
     }
     func tick() {
         let now = Date(); let elapsed = now.timeIntervalSince(lastTick); lastTick = now
@@ -916,6 +997,7 @@ if CommandLine.arguments.contains("--preview") {
     _ = NSApplication.shared
     let owner = AppDelegate()
     owner.ledger = Ledger(day: dayKey(), consume: 3600, create: 1200)
+    owner.history = [DaySummary(day: "2026-09-14", create: 61, consume: 39), DaySummary(day: "2026-09-13", create: 74, consume: 26), DaySummary(day: "2026-09-12", create: 48, consume: 52)]
     owner.ledger.apps = ["site:x.com": AppUsage(name: "x.com", seconds: 3600), "editor": AppUsage(name: "Xcode", seconds: 1200)]
     owner.activeName = "x.com"; owner.activeID = "site:x.com"; owner.mode = "consume"
     owner.status = NSStatusBar.system.statusItem(withLength: 0)
@@ -925,7 +1007,7 @@ if CommandLine.arguments.contains("--preview") {
     window.contentView = view
     owner.ledger.apps?["site:example.org"] = AppUsage(name: "example.org", seconds: 123, unclassified: 123)
     for tab in 0...2 {
-        view.selectedTab = tab; owner.render(); view.display()
+        view.showingHistory = tab == 2; view.selectedTab = tab; owner.render(); view.display()
         let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds)!
         view.cacheDisplay(in: view.bounds, to: bitmap)
         try! bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments.last! + "/ratio-preview-\(tab).png"))
