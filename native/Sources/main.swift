@@ -162,7 +162,7 @@ final class ReviewButton: GridButton {
         (state == .on || isHighlighted ? selectionBackground : panelBackground).setFill()
         NSBezierPath(rect: bounds).fill()
         let color: NSColor = hasCategory && state != .on ? NSColor(white: 0.4, alpha: 1) : (mode == "create" ? createColor : mode == "consume" ? consumeColor : state == .on ? panelText : NSColor(white: 0.55, alpha: 1))
-        let buttonFont = mode == "neutral" ? NSFont.monospacedSystemFont(ofSize: 8, weight: .regular) : interfaceFont
+        let buttonFont = mode == "neutral" ? NSFont.monospacedSystemFont(ofSize: 11, weight: .regular) : interfaceFont
         let attrs: [NSAttributedString.Key: Any] = [.font: buttonFont, .foregroundColor: color]
         let text = title as NSString; let size = text.size(withAttributes: attrs)
         text.draw(at: NSPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2), withAttributes: attrs)
@@ -386,19 +386,19 @@ final class RatioView: NSView {
                 let label = NSTextField(labelWithString: row.value.name)
                 label.font = interfaceFont; label.textColor = panelText
                 label.lineBreakMode = .byTruncatingTail
-                label.frame = NSRect(x: 16, y: y + 13, width: 128, height: 18)
+                label.frame = NSRect(x: 16, y: y + 13, width: 140, height: 18)
                 reviewList.addSubview(label)
                 let time = NSTextField(labelWithString: owner?.duration(row.value.seconds) ?? "")
                 time.identifier = NSUserInterfaceItemIdentifier(row.key)
                 time.font = interfaceFont; time.textColor = panelText; time.alignment = .right
-                let ignore = ReviewButton(title: "IGNORE", target: owner, action: #selector(AppDelegate.reviewSite(_:)))
+                let ignore = ReviewButton(title: "×", target: owner, action: #selector(AppDelegate.reviewSite(_:)))
                 ignore.siteID = row.key; ignore.mode = "neutral"
-                ignore.font = NSFont.monospacedSystemFont(ofSize: 8, weight: .regular)
+                ignore.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
                 ignore.state = selectedMode(row.key) == "neutral" ? .on : .off
                 ignore.hasCategory = selectedMode(row.key) != nil
                 ignore.isBordered = false; ignore.toolTip = "Exclude from ratio"
                 ignore.setAccessibilityLabel("Ignore in ratio: " + row.value.name)
-                ignore.frame = NSRect(x: 136, y: y, width: 52, height: 44)
+                ignore.frame = NSRect(x: 156, y: y, width: 28, height: 44)
                 reviewList.addSubview(ignore)
                 time.frame = NSRect(x: 184, y: y + 13, width: 80, height: 18); reviewList.addSubview(time)
                 for (j, mode) in ["create", "consume"].enumerated() {
