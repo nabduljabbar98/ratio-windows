@@ -142,7 +142,7 @@ class GridButton: NSButton {
             let countText = count as NSString
             let diameter: CGFloat = 19
             let circle = NSRect(x: (bounds.width - diameter) / 2, y: (bounds.height - diameter) / 2, width: diameter, height: diameter)
-            consumeColor.setFill()
+            unclassifiedColor.setFill()
             NSBezierPath(ovalIn: circle).fill()
             let badgeAttrs: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedSystemFont(ofSize: 10, weight: .bold), .foregroundColor: NSColor.white]
             let badge = countText
