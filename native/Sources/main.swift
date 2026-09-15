@@ -98,9 +98,9 @@ func drawWebMoon(in bounds: NSRect, color: NSColor, flipped: Bool) {
 
 func drawHistoryClock(in bounds: NSRect, color: NSColor) {
     NSGraphicsContext.saveGraphicsState()
-    let transform = AffineTransform(translationByX: bounds.midX - 7, byY: bounds.midY + 7)
+    let transform = AffineTransform(translationByX: bounds.midX - 7, byY: bounds.midY - 7)
     var scaled = transform
-    scaled.scale(x: 14 / 24, y: -14 / 24)
+    scaled.scale(x: 14 / 24, y: 14 / 24)
     (scaled as NSAffineTransform).concat()
     let p = NSBezierPath()
     p.lineWidth = 2; p.lineCapStyle = .round; p.lineJoinStyle = .round
