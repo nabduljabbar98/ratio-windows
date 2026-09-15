@@ -97,15 +97,23 @@ func drawWebMoon(in bounds: NSRect, color: NSColor, flipped: Bool) {
 }
 
 func drawHistoryClock(in bounds: NSRect, color: NSColor) {
-    let center = NSPoint(x: bounds.midX, y: bounds.midY)
-    let circle = NSBezierPath(ovalIn: NSRect(x: center.x - 7, y: center.y - 7, width: 14, height: 14))
-    circle.lineWidth = 1.7
-    color.setStroke(); circle.stroke()
-    let hands = NSBezierPath()
-    hands.lineWidth = 1.7; hands.lineCapStyle = .round; hands.lineJoinStyle = .round
-    hands.move(to: center); hands.line(to: NSPoint(x: center.x, y: center.y + 4))
-    hands.move(to: center); hands.line(to: NSPoint(x: center.x + 3.5, y: center.y))
-    hands.stroke()
+    NSGraphicsContext.saveGraphicsState()
+    let transform = AffineTransform(translationByX: bounds.midX - 7, byY: bounds.midY + 7)
+    var scaled = transform
+    scaled.scale(x: 14 / 24, y: -14 / 24)
+    (scaled as NSAffineTransform).concat()
+    let p = NSBezierPath()
+    p.lineWidth = 2; p.lineCapStyle = .round; p.lineJoinStyle = .round
+    p.move(to: NSPoint(x: 3, y: 12))
+    p.curve(to: NSPoint(x: 12, y: 21), controlPoint1: NSPoint(x: 3, y: 16.97), controlPoint2: NSPoint(x: 7.03, y: 21))
+    p.curve(to: NSPoint(x: 21, y: 12), controlPoint1: NSPoint(x: 16.97, y: 21), controlPoint2: NSPoint(x: 21, y: 16.97))
+    p.curve(to: NSPoint(x: 12, y: 3), controlPoint1: NSPoint(x: 21, y: 7.03), controlPoint2: NSPoint(x: 16.97, y: 3))
+    p.curve(to: NSPoint(x: 5.26, y: 5.74), controlPoint1: NSPoint(x: 9.47, y: 3), controlPoint2: NSPoint(x: 7.04, y: 4.04))
+    p.line(to: NSPoint(x: 3, y: 8))
+    p.move(to: NSPoint(x: 3, y: 3)); p.line(to: NSPoint(x: 3, y: 8)); p.line(to: NSPoint(x: 8, y: 8))
+    p.move(to: NSPoint(x: 12, y: 7)); p.line(to: NSPoint(x: 12, y: 12)); p.line(to: NSPoint(x: 16, y: 14))
+    color.setStroke(); p.stroke()
+    NSGraphicsContext.restoreGraphicsState()
 }
 
 class GridButton: NSButton {
