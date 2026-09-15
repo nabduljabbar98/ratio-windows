@@ -59,6 +59,15 @@ struct DaySummary: Codable {
     var create: Double
     var consume: Double
 }
+struct ResetSnapshot {
+    var ledger: Ledger
+    var rules: [String: String]
+    var activeSeconds: Double
+    var paused: Bool
+    var prompted: Set<String>
+    var chromeSessionSites: Set<String>
+    var mode: String?
+}
 func dayKey(_ date: Date = Date()) -> String {
     let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date)
 }
@@ -718,6 +727,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var updaterStarted = false
     var signInView: UpdateSignInView?
     var ledger = Ledger(day: dayKey())
+    var resetUndo: ResetSnapshot?
+    var resetUndoTimer: Timer?
     var history: [DaySummary] = []
     var rules: [String: String] = [:]
     var status: NSStatusItem!
@@ -926,6 +937,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         tick(); mode = value; rules[activeID] = value; save(); render()
     }
     @objc func resetAll() {
+        if let snapshot = resetUndo {
+            resetUndoTimer?.invalidate(); resetUndoTimer = nil
+            ledger = snapshot.ledger; rules = snapshot.rules; activeSeconds = snapshot.activeSeconds
+            paused = snapshot.paused; prompted = snapshot.prompted; chromeSessionSites = snapshot.chromeSessionSites
+            mode = snapshot.mode; resetUndo = nil; lastTick = Date(); save(); render(); return
+        }
+        tick()
+        resetUndo = ResetSnapshot(ledger: ledger, rules: rules, activeSeconds: activeSeconds, paused: paused, prompted: prompted, chromeSessionSites: chromeSessionSites, mode: mode)
+        resetUndoTimer?.invalidate()
+        resetUndoTimer = Timer.scheduledTimer(withTimeInterval: 8, repeats: false) { [weak self] _ in
+            self?.resetUndo = nil; self?.panel.forget.title = "RESET"; self?.panel.forget.needsDisplay = true
+        }
         ledger = Ledger(day: dayKey())
         rules = [:]; activeSeconds = 0; paused = false
         prompted.removeAll(); chromeSessionSites.removeAll()
@@ -1011,6 +1034,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.trackedTotal.stringValue = duration((ledger.apps ?? [:]).values.reduce(0) { $0 + $1.seconds })
         panel.note.stringValue = paused ? "Tracking paused. Click Resume to count." : sleeping || idle ? "Away · counting resumes with activity." : mode == nil ? "App time is counting. Choose a mode to include it in your ratio." : state + " · time updates every second.\nClick a mode to correct it."
         panel.pause.title = paused ? "▶" : "Ⅱ"
+        panel.forget.title = resetUndo == nil ? "RESET" : "UNDO"
         panel.pause.setAccessibilityLabel(paused ? "Resume tracking" : "Pause tracking")
         panel.pause.toolTip = paused ? "Resume tracking" : "Pause tracking"
         panel.consume.state = mode == "consume" ? .on : .off; panel.create.state = mode == "create" ? .on : .off
