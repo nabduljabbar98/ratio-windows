@@ -686,7 +686,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updaterController = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
         if let credential = UpdateCredential.load() {
             updaterController.updater.httpHeaders = ["Authorization": "Bearer " + credential.token]
-            do { try updaterController.updater.start(); updaterStarted = true } catch { NSLog("Ratio updater could not start") }
+            do {
+                try updaterController.updater.start(); updaterStarted = true
+                enableAutomaticUpdates()
+            } catch { NSLog("Ratio updater could not start") }
         }
         rollover()
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -830,6 +833,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updaterController.checkForUpdates(nil)
     }
     @objc func updateAccount() { showUpdateSignIn() }
+    func enableAutomaticUpdates() {
+        updaterController.updater.automaticallyChecksForUpdates = true
+        updaterController.updater.automaticallyDownloadsUpdates = true
+    }
     func showUpdateSignIn() {
         showPopover()
         if signInView == nil {
@@ -841,6 +848,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if !self.updaterStarted {
                     do { try self.updaterController.updater.start(); self.updaterStarted = true } catch { return }
                 }
+                self.enableAutomaticUpdates()
                 self.signInView?.removeFromSuperview(); self.signInView = nil
                 self.popover.performClose(nil)
                 self.updaterController.checkForUpdates(nil)
