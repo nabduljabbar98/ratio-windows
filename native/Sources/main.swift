@@ -131,7 +131,7 @@ class GridButton: NSButton {
     var invertsWhenHighlighted = true
     var needsAttention = false
     override func draw(_ dirtyRect: NSRect) {
-        let selected = state == .on || isHighlighted
+        let selected = (state == .on || isHighlighted) && !needsAttention
         (selected ? (invertsWhenHighlighted ? panelText : selectionBackground) : panelBackground).setFill()
         NSBezierPath(rect: bounds).fill()
         let attrs: [NSAttributedString.Key: Any] = [.font: interfaceFont, .foregroundColor: selected && invertsWhenHighlighted ? panelBackground : panelText]
@@ -144,7 +144,7 @@ class GridButton: NSButton {
             let circle = NSRect(x: (bounds.width - diameter) / 2, y: (bounds.height - diameter) / 2, width: diameter, height: diameter)
             unclassifiedColor.setFill()
             NSBezierPath(ovalIn: circle).fill()
-            let badgeAttrs: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedSystemFont(ofSize: 10, weight: .bold), .foregroundColor: NSColor.white]
+            let badgeAttrs: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedSystemFont(ofSize: 10, weight: .bold), .foregroundColor: NSColor(white: 0.12, alpha: 1)]
             let badge = countText
             let badgeSize = badge.size(withAttributes: badgeAttrs)
             badge.draw(at: NSPoint(x: circle.midX - badgeSize.width / 2, y: circle.midY - badgeSize.height / 2), withAttributes: badgeAttrs)
@@ -754,7 +754,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ledger.classifyPending(button.siteID, mode: button.mode, previousMode: previous)
         rules[button.siteID] = button.mode
         if activeID == button.siteID { mode = button.mode }
-        if pendingSites.isEmpty { panel.selectedTab = 1 }
+        if pendingSites.isEmpty { panel.reviewingPending = false }
         save(); render()
     }
     let defaults = UserDefaults.standard
