@@ -118,10 +118,10 @@ func drawHistoryClock(in bounds: NSRect, color: NSColor) {
 
 func drawBackArrow(in bounds: NSRect, color: NSColor) {
     let p = NSBezierPath()
-    p.lineWidth = 1.7; p.lineCapStyle = .round; p.lineJoinStyle = .round
-    p.move(to: NSPoint(x: bounds.midX + 7, y: bounds.midY)); p.line(to: NSPoint(x: bounds.midX - 7, y: bounds.midY))
-    p.move(to: NSPoint(x: bounds.midX - 7, y: bounds.midY)); p.line(to: NSPoint(x: bounds.midX, y: bounds.midY + 7))
-    p.move(to: NSPoint(x: bounds.midX - 7, y: bounds.midY)); p.line(to: NSPoint(x: bounds.midX, y: bounds.midY - 7))
+    p.lineWidth = 1.6; p.lineCapStyle = .round; p.lineJoinStyle = .round
+    p.move(to: NSPoint(x: bounds.midX + 6, y: bounds.midY)); p.line(to: NSPoint(x: bounds.midX - 6, y: bounds.midY))
+    p.move(to: NSPoint(x: bounds.midX - 6, y: bounds.midY)); p.line(to: NSPoint(x: bounds.midX, y: bounds.midY + 6))
+    p.move(to: NSPoint(x: bounds.midX - 6, y: bounds.midY)); p.line(to: NSPoint(x: bounds.midX, y: bounds.midY - 6))
     color.setStroke(); p.stroke()
 }
 
