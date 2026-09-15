@@ -71,6 +71,7 @@ var panelText: NSColor { lightMode ? .black : .white }
 var selectionBackground: NSColor { NSColor(white: lightMode ? 0.91 : 0.075, alpha: 1) }
 let createColor = NSColor(srgbRed: 40/255, green: 205/255, blue: 65/255, alpha: 1)
 let consumeColor = NSColor(srgbRed: 1, green: 59/255, blue: 48/255, alpha: 1)
+let unclassifiedColor = NSColor(srgbRed: 1, green: 159/255, blue: 10/255, alpha: 1)
 var gridColor: NSColor { NSColor(white: lightMode ? 0.8 : 0.14, alpha: 1) }
 func hairline(_ rect: NSRect) { gridColor.setFill(); NSBezierPath(rect: rect).fill() }
 
@@ -462,7 +463,7 @@ final class RatioView: NSView {
             for (i, row) in pending.enumerated() {
                 let y = CGFloat(i * 44)
                 let label = NSTextField(labelWithString: row.value.name)
-                label.font = interfaceFont; label.textColor = panelText
+                label.font = interfaceFont; label.textColor = selectedMode(row.key) == nil ? unclassifiedColor : panelText
                 label.lineBreakMode = .byTruncatingTail
                 label.frame = NSRect(x: 16, y: y + 13, width: 140, height: 18)
                 reviewList.addSubview(label)
