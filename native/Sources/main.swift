@@ -95,6 +95,18 @@ func drawWebMoon(in bounds: NSRect, color: NSColor, flipped: Bool) {
     NSGraphicsContext.restoreGraphicsState()
 }
 
+func drawHistoryClock(in bounds: NSRect, color: NSColor) {
+    let center = NSPoint(x: bounds.midX, y: bounds.midY)
+    let circle = NSBezierPath(ovalIn: NSRect(x: center.x - 7, y: center.y - 7, width: 14, height: 14))
+    circle.lineWidth = 1.7
+    color.setStroke(); circle.stroke()
+    let hands = NSBezierPath()
+    hands.lineWidth = 1.7; hands.lineCapStyle = .round; hands.lineJoinStyle = .round
+    hands.move(to: center); hands.line(to: NSPoint(x: center.x, y: center.y + 4))
+    hands.move(to: center); hands.line(to: NSPoint(x: center.x + 3.5, y: center.y))
+    hands.stroke()
+}
+
 class GridButton: NSButton {
     var drawsGridEdges = true
     var drawsBottomEdge = true
@@ -120,6 +132,8 @@ class GridButton: NSButton {
             badge.draw(at: NSPoint(x: circle.midX - badgeSize.width / 2, y: circle.midY - badgeSize.height / 2), withAttributes: badgeAttrs)
         } else if title == "☾" {
             drawWebMoon(in: bounds, color: attrs[.foregroundColor] as! NSColor, flipped: isFlipped)
+        } else if title == "◷" {
+            drawHistoryClock(in: bounds, color: attrs[.foregroundColor] as! NSColor)
         } else {
             text.draw(at: NSPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2), withAttributes: attrs)
         }
