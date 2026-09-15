@@ -829,6 +829,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.target = self; menu.addItem(item)
             let account = NSMenuItem(title: UpdateCredential.load() == nil ? "Sign In for Updates…" : "Update Account…", action: #selector(updateAccount), keyEquivalent: "")
             account.target = self; menu.addItem(account)
+            menu.addItem(.separator())
+            let quit = NSMenuItem(title: "Quit Ratio", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+            quit.target = NSApp; menu.addItem(quit)
             if let button = status.button { menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button) }
         } else { togglePopover() }
     }
