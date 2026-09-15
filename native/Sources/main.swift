@@ -116,6 +116,15 @@ func drawHistoryClock(in bounds: NSRect, color: NSColor) {
     NSGraphicsContext.restoreGraphicsState()
 }
 
+func drawBackArrow(in bounds: NSRect, color: NSColor) {
+    let p = NSBezierPath()
+    p.lineWidth = 1.7; p.lineCapStyle = .round; p.lineJoinStyle = .round
+    p.move(to: NSPoint(x: bounds.midX + 7, y: bounds.midY)); p.line(to: NSPoint(x: bounds.midX - 7, y: bounds.midY))
+    p.move(to: NSPoint(x: bounds.midX - 7, y: bounds.midY)); p.line(to: NSPoint(x: bounds.midX, y: bounds.midY + 7))
+    p.move(to: NSPoint(x: bounds.midX - 7, y: bounds.midY)); p.line(to: NSPoint(x: bounds.midX, y: bounds.midY - 7))
+    color.setStroke(); p.stroke()
+}
+
 class GridButton: NSButton {
     var drawsGridEdges = true
     var drawsBottomEdge = true
@@ -143,6 +152,8 @@ class GridButton: NSButton {
             drawWebMoon(in: bounds, color: attrs[.foregroundColor] as! NSColor, flipped: isFlipped)
         } else if title == "◷" {
             drawHistoryClock(in: bounds, color: attrs[.foregroundColor] as! NSColor)
+        } else if title == "←" {
+            drawBackArrow(in: bounds, color: attrs[.foregroundColor] as! NSColor)
         } else {
             text.draw(at: NSPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2), withAttributes: attrs)
         }
@@ -418,7 +429,9 @@ final class RatioView: NSView {
     @objc func showApps() { selectedTab = 1; owner?.render() }
     @objc func toggleHistory() {
         showingHistory.toggle()
-        history.setAccessibilityLabel(showingHistory ? "Show activity" : "Show history")
+        history.title = showingHistory ? "←" : "◷"
+        history.setAccessibilityLabel(showingHistory ? "Back to activity" : "Show history")
+        history.toolTip = showingHistory ? "Back to activity" : "History"
         owner?.render()
     }
     func refreshApps() {
