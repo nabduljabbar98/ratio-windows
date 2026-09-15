@@ -1015,7 +1015,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.consume.state = mode == "consume" ? .on : .off; panel.create.state = mode == "create" ? .on : .off
         let symbol = paused || idle || sleeping ? "Ⅱ" : mode == "create" ? "↑" : mode == "consume" ? "↓" : "?"
         let statusTitle = total > 0 ? "\(symbol) \(c)/\(100-c)" : "\(symbol) Ratio"
-        let statusColor: NSColor = !tracking || mode == nil ? .labelColor : mode == "create" ? createColor : consumeColor
+        let statusColor: NSColor = !tracking ? .labelColor : mode == nil ? unclassifiedColor : mode == "create" ? createColor : consumeColor
         status.button?.attributedTitle = NSAttributedString(string: statusTitle, attributes: [.font: interfaceFont, .foregroundColor: statusColor])
         status.button?.toolTip = "Ratio · \(state.lowercased()) · \(activeName)"
         if panel.showingApps {
