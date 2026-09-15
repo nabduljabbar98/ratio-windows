@@ -10,6 +10,7 @@ struct AppUsage: Codable {
     var unclassified: Double? = 0
     var createSeconds: Double?
     var consumeSeconds: Double?
+    var lastUsed: Double?
 }
 
 struct Ledger: Codable {
@@ -27,7 +28,7 @@ struct Ledger: Codable {
                 entry.createSeconds = mode == "create" ? classified : 0
                 entry.consumeSeconds = mode == "consume" ? classified : 0
             }
-            entry.name = appName; entry.seconds += seconds
+            entry.name = appName; entry.seconds += seconds; entry.lastUsed = Date().timeIntervalSince1970
             if mode == "create" { entry.createSeconds = (entry.createSeconds ?? 0) + seconds }
             if mode == "consume" { entry.consumeSeconds = (entry.consumeSeconds ?? 0) + seconds }
             if mode == nil { entry.unclassified = (entry.unclassified ?? 0) + seconds }
@@ -131,7 +132,7 @@ final class AppListView: NSView {
         panelBackground.setFill(); NSBezierPath(rect: bounds).fill()
         guard let owner = owner else { return }
         let rows = (owner.ledger.apps ?? [:]).sorted {
-            $0.value.seconds == $1.value.seconds ? $0.key < $1.key : $0.value.seconds > $1.value.seconds
+            ($0.value.lastUsed ?? 0) == ($1.value.lastUsed ?? 0) ? $0.value.seconds > $1.value.seconds : ($0.value.lastUsed ?? 0) > ($1.value.lastUsed ?? 0)
         }
         let total = rows.reduce(0) { $0 + $1.value.seconds }
         let attrs: [NSAttributedString.Key: Any] = [.font: interfaceFont, .foregroundColor: panelText]
@@ -237,7 +238,6 @@ final class RatioView: NSView {
     let trackedTotal = NSTextField(labelWithString: "")
     let note = NSTextField(wrappingLabelWithString: "")
     let consume = GridButton(title: "↓ Consume", target: nil, action: #selector(AppDelegate.chooseConsume))
-    let neutral = GridButton(title: "— Neutral", target: nil, action: #selector(AppDelegate.chooseNeutral))
     let create = GridButton(title: "↑ Create", target: nil, action: #selector(AppDelegate.chooseCreate))
     let pause = GridButton(title: "Pause", target: nil, action: #selector(AppDelegate.togglePause))
     let forget = GridButton(title: "Reset", target: nil, action: #selector(AppDelegate.resetAll))
@@ -246,7 +246,7 @@ final class RatioView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true; layer?.backgroundColor = panelBackground.cgColor
-        for button in [ratioTab, appsTab, consume, neutral, create, pause, forget, quit, theme] {
+        for button in [ratioTab, appsTab, consume, create, pause, forget, quit, theme] {
             button.font = interfaceFont; button.isBordered = false; button.setButtonType(.momentaryPushIn); addSubview(button)
         }
         ratioTab.target = self; ratioTab.action = #selector(showRatio)
@@ -274,9 +274,8 @@ final class RatioView: NSView {
         trackedTotal.frame = NSRect(x: 180, y: 277, width: 84, height: 18)
         addSubview(trackedTotal)
         note.frame = NSRect(x: 16, y: 53, width: 328, height: 46)
-        create.frame = NSRect(x: 0, y: 108, width: 120, height: 44)
-        neutral.frame = NSRect(x: 120, y: 108, width: 120, height: 44)
-        consume.frame = NSRect(x: 240, y: 108, width: 120, height: 44)
+        create.frame = NSRect(x: 0, y: 108, width: 180, height: 44)
+        consume.frame = NSRect(x: 180, y: 108, width: 180, height: 44)
         pause.frame = NSRect(x: 0, y: 0, width: 44, height: 44)
         forget.frame = NSRect(x: 44, y: 0, width: 136, height: 44)
         quit.frame = NSRect(x: 180, y: 0, width: 136, height: 44)
@@ -364,7 +363,7 @@ final class RatioView: NSView {
         notifications.setAccessibilityLabel(notifications.toolTip)
         notifications.needsDisplay = true
         let pending = (owner?.ledger.apps ?? [:]).filter { !reviewingPending || ($0.value.unclassified ?? 0) >= 1 }.sorted {
-            $0.value.seconds == $1.value.seconds ? $0.key < $1.key : $0.value.seconds > $1.value.seconds
+            ($0.value.lastUsed ?? 0) == ($1.value.lastUsed ?? 0) ? $0.value.seconds > $1.value.seconds : ($0.value.lastUsed ?? 0) > ($1.value.lastUsed ?? 0)
         }
         func selectedMode(_ id: String) -> String? {
             guard let owner = owner else { return nil }
@@ -391,16 +390,7 @@ final class RatioView: NSView {
                 let time = NSTextField(labelWithString: owner?.duration(row.value.seconds) ?? "")
                 time.identifier = NSUserInterfaceItemIdentifier(row.key)
                 time.font = interfaceFont; time.textColor = panelText; time.alignment = .right
-                let ignore = ReviewButton(title: "×", target: owner, action: #selector(AppDelegate.reviewSite(_:)))
-                ignore.siteID = row.key; ignore.mode = "neutral"
-                ignore.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-                ignore.state = selectedMode(row.key) == "neutral" ? .on : .off
-                ignore.hasCategory = selectedMode(row.key) != nil
-                ignore.isBordered = false; ignore.toolTip = "Exclude from ratio"
-                ignore.setAccessibilityLabel("Ignore in ratio: " + row.value.name)
-                ignore.frame = NSRect(x: 156, y: y, width: 28, height: 44)
-                reviewList.addSubview(ignore)
-                time.frame = NSRect(x: 184, y: y + 13, width: 80, height: 18); reviewList.addSubview(time)
+                time.frame = NSRect(x: 156, y: y + 13, width: 108, height: 18); reviewList.addSubview(time)
                 for (j, mode) in ["create", "consume"].enumerated() {
                     let button = ReviewButton(title: mode == "consume" ? "↓" : "↑", target: owner, action: #selector(AppDelegate.reviewSite(_:)))
                     button.siteID = row.key; button.mode = mode; button.font = interfaceFont
@@ -434,7 +424,7 @@ final class RatioView: NSView {
         ratioTab.state = selectedTab == 0 ? .on : .off; appsTab.state = selectedTab == 0 ? .off : .on
         let height = max(244, (owner?.ledger.apps?.count ?? 0) * 56)
         appList.setFrameSize(NSSize(width: 360, height: height)); appList.needsDisplay = true
-        for button in [ratioTab, appsTab, consume, neutral, create, pause, forget, quit, theme] { button.needsDisplay = true }
+        for button in [ratioTab, appsTab, consume, create, pause, forget, quit, theme] { button.needsDisplay = true }
     }
     required init?(coder: NSCoder) { fatalError() }
     override func draw(_ dirtyRect: NSRect) {
@@ -654,7 +644,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var chromeSessionSites = Set<String>()
     var reviewWork: DispatchWorkItem?
     var pendingSites: [(key: String, value: AppUsage)] {
-        (ledger.apps ?? [:]).filter { ($0.value.unclassified ?? 0) >= 1 }.sorted { $0.value.seconds > $1.value.seconds }
+        (ledger.apps ?? [:]).filter { ($0.value.unclassified ?? 0) >= 1 }.sorted { ($0.value.lastUsed ?? 0) > ($1.value.lastUsed ?? 0) }
     }
     @objc func reviewSite(_ button: ReviewButton) {
         tick()
@@ -675,7 +665,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ]
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let data = defaults.data(forKey: "ledger"), let saved = try? JSONDecoder().decode(Ledger.self, from: data) { ledger = saved }
-        rules = defaults.dictionary(forKey: "rules") as? [String: String] ?? [:]
+        rules = (defaults.dictionary(forKey: "rules") as? [String: String] ?? [:]).filter { $0.value != "neutral" }
         // Migrate existing per-app history to explicit category contributions.
         if let history = ledger.apps, history.values.contains(where: { $0.createSeconds == nil || $0.consumeSeconds == nil }) {
             let attributed = history.values.reduce(0) { $0 + max(0, $1.seconds - ($1.unclassified ?? 0)) }
@@ -705,7 +695,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         status.button?.font = interfaceFont
         let controller = NSViewController()
         panel = RatioView(frame: NSRect(x: 0, y: 0, width: 360, height: 352)); panel.owner = self
-        for button in [panel.consume, panel.neutral, panel.create, panel.pause, panel.forget] { button.target = self }
+        for button in [panel.consume, panel.create, panel.pause, panel.forget] { button.target = self }
         controller.view = panel; popover.contentViewController = controller; popover.behavior = .transient
         popover.appearance = NSAppearance(named: .darkAqua)
         let clicks: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
@@ -804,7 +794,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func sleepNow() { tick(); sleeping = true; save(); render() }
     @objc func wakeNow() { sleeping = false; lastTick = Date(); updateApp(NSWorkspace.shared.frontmostApplication); render() }
     @objc func chooseConsume() { choose("consume") }
-    @objc func chooseNeutral() { choose("neutral") }
     @objc func chooseCreate() { choose("create") }
     func choose(_ value: String) {
         guard !activeID.isEmpty else { return }
@@ -883,7 +872,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alignment = NSMutableParagraphStyle(); alignment.alignment = .center
         styledRatio.addAttribute(.paragraphStyle, value: alignment, range: NSRange(location: 0, length: styledRatio.length))
         panel.totals.attributedStringValue = styledRatio
-        let state = paused ? "PAUSED" : sleeping || idle ? "AWAY" : mode == "create" ? "CREATING" : mode == "consume" ? "CONSUMING" : mode == "neutral" ? "NEUTRAL" : "UNCLASSIFIED"
+        let state = paused ? "PAUSED" : sleeping || idle ? "AWAY" : mode == "create" ? "CREATING" : mode == "consume" ? "CONSUMING" : "UNCLASSIFIED"
         panel.title.stringValue = "CREATE:CONSUME"
         let tracking = !paused && !sleeping && !idle
         let liveStatus = tracking ? "TRACKING" : state
@@ -893,10 +882,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.pause.title = paused ? "▶" : "Ⅱ"
         panel.pause.setAccessibilityLabel(paused ? "Resume tracking" : "Pause tracking")
         panel.pause.toolTip = paused ? "Resume tracking" : "Pause tracking"
-        panel.consume.state = mode == "consume" ? .on : .off; panel.neutral.state = mode == "neutral" ? .on : .off; panel.create.state = mode == "create" ? .on : .off
-        let symbol = paused || idle || sleeping ? "Ⅱ" : mode == "create" ? "↑" : mode == "consume" ? "↓" : mode == "neutral" ? "—" : "?"
+        panel.consume.state = mode == "consume" ? .on : .off; panel.create.state = mode == "create" ? .on : .off
+        let symbol = paused || idle || sleeping ? "Ⅱ" : mode == "create" ? "↑" : mode == "consume" ? "↓" : "?"
         let statusTitle = total > 0 ? "\(symbol) \(c)/\(100-c)" : "\(symbol) Ratio"
-        let statusColor: NSColor = !tracking || mode == nil || mode == "neutral" ? .labelColor : mode == "create" ? createColor : consumeColor
+        let statusColor: NSColor = !tracking || mode == nil ? .labelColor : mode == "create" ? createColor : consumeColor
         status.button?.attributedTitle = NSAttributedString(string: statusTitle, attributes: [.font: interfaceFont, .foregroundColor: statusColor])
         status.button?.toolTip = "Ratio · \(state.lowercased()) · \(activeName)"
         if panel.showingApps {
