@@ -1,48 +1,50 @@
 # Ratio
 
-A macOS menu-bar tracker for time spent creating and consuming, plus an interactive desktop demo.
+Create more. Consume less.
 
-## Download
+Ratio is a macOS menu-bar app that measures time in the active app or browser site, then lets you classify that time as creating or consuming. It shows the balance in the menu bar and keeps a local daily history.
 
-Download `Ratio-macOS-AppleSilicon.zip` from Releases, unzip, and move Ratio.app to Applications.
+## Get Ratio
 
-This prototype requires an Apple Silicon Mac running macOS 13 or later. It is ad-hoc signed, not Apple-notarized, so macOS may block opening a downloaded copy. Developer ID signing and notarization remain necessary for a frictionless public release. You can also build from source.
+- **Signed app:** Buy the notarized, automatically updating build for $20 at [ratio.visualizevalue.com](https://ratio.visualizevalue.com/).
+- **Build it yourself:** Clone this repository and follow the instructions below.
 
-## How it works
+The paid build funds development and removes the work of compiling, signing, notarizing, and updating the app. The application source is available under GPL-3.0.
 
-- Counts foreground app time; background apps are not counted simultaneously.
-- The green up arrow means creating; the red down arrow means consuming.
-- Reclassifying an app moves its recorded time for the current day and remembers the category.
-- Unknown activity counts toward tracked time but stays outside the ratio until categorized.
-- Tracking pauses after 60 seconds without input, during sleep, or when manually paused. Reading without input also triggers that idle threshold.
-- Supported browsers use macOS Automation to inspect the active tab URL every three seconds. Only the hostname is retained. Without permission, tracking falls back to the browser app.
-- Totals and preferences stay locally on your Mac. No account or cloud synchronization.
-- Reset clears today's data and custom categories. Daily totals reset at local midnight; historical days are not archived yet.
+## What it records
 
-Website attribution can lag by up to three seconds. Categorization describes the app/site, not your intent within it. The prototype has no auto-update mechanism.
+- Ratio counts time only for the foreground window.
+- For supported browsers, it can read the active tab and retains only the hostname.
+- App usage, classifications, daily history, and preferences stay in macOS UserDefaults on your Mac.
+- Update authentication is stored in Keychain.
+- The signed build can share one anonymous cumulative tracked-time total. It never sends app names, site names, window titles, classifications, or daily history. This is enabled by default and can be disabled from **Share Anonymous Total** in the right-click menu. Self-built copies do not report unless they have a valid purchaser update credential.
+
+See [`native/Sources/main.swift`](native/Sources/main.swift) for the complete implementation.
+
+## Requirements
+
+- macOS 12 or newer
+- Intel or Apple silicon
+- Xcode command-line tools
 
 ## Build the Mac app
 
-Install Apple's command-line developer tools, then run:
-
 ```sh
-cd native
+git clone https://github.com/visualizevalue/ratio.git
+cd ratio/native
+./setup-sparkle.sh
 ./build.sh
 open Ratio.app
 ```
 
-The build uses Swift/AppKit, signs locally, and runs accounting self-tests. Building on Intel produces an Intel executable; the attached prebuilt download is Apple Silicon only.
+`build.sh` creates a universal Intel/Apple-silicon app, applies an ad-hoc local signature, and runs the accounting self-tests. An ad-hoc build may require right-clicking the app and choosing **Open**. It does not carry Visualize Value's Developer ID signature or Apple notarization.
 
-## Run the demo
+Automatic updates for the distributed build use Sparkle. Update downloads require a verified Ratio purchase; this does not prevent local builds or modify local tracking data.
 
-Requires Node.js 22.13 or newer.
+## Contributing
 
-```sh
-cd web
-npm ci
-npm run dev
-```
+Issues and focused pull requests are welcome. Please keep the interface compact, preserve local-first tracking, and do not add collection of app names, sites, window titles, or browsing history.
 
-The demo simulates app activity; it does not record your Mac. Wallpaper selection reuses the vv-store OS approach: select a random square VV visual on the server before rendering, fit it within the desktop, and use a fixed fallback on image failure. The included visual URL pool is a snapshot, rather than a connection to the private vv-store database.
+## License
 
-VV artwork is owned by Visualize Value; no additional artwork license is granted here.
+Ratio's application source is licensed under [GNU GPL v3](LICENSE). The Ratio name, icon, and Visualize Value name are trademarks or brand assets and are not granted for use by the GPL software license. Third-party components retain their own licenses.

@@ -1,7 +1,5 @@
-Ratio 0.1.0 prototype — Apple Silicon, macOS 13+.
+# Ratio releases
 
-Download and unzip Ratio-macOS-AppleSilicon.zip, then move Ratio.app to Applications.
+The current paid distribution is a signed and notarized universal Mac app for Intel and Apple silicon on macOS 12 or newer. It includes daily history and automatic in-place updates.
 
-This is an ad-hoc-signed development build, not Apple-notarized. macOS may block downloaded copies. Source and build instructions are included in the repository.
-
-Tracks foreground app/site time, supports retrospective daily categorization, and pauses when idle. Data stays local. No historical archive or automatic updates yet.
+Release archives are distributed through [ratio.visualizevalue.com](https://ratio.visualizevalue.com/) after purchase. This repository contains the complete application source and instructions for creating an ad-hoc local build.

@@ -755,6 +755,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var idle = false
     var ticks = 0
     var activeSeconds: Double = 0
+    var telemetrySeconds: Double = 0
+    var telemetryEnabled = true
+    var telemetryInstallID = ""
+    var lastTelemetryReport = Date.distantPast
     var chromeSessionSites = Set<String>()
     var reviewWork: DispatchWorkItem?
     var pendingSites: [(key: String, value: AppUsage)] {
@@ -781,6 +785,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let data = defaults.data(forKey: "ledger"), let saved = try? JSONDecoder().decode(Ledger.self, from: data) { ledger = saved }
         if let data = defaults.data(forKey: "history"), let saved = try? JSONDecoder().decode([DaySummary].self, from: data) { history = saved }
         rules = (defaults.dictionary(forKey: "rules") as? [String: String] ?? [:]).filter { $0.value != "neutral" }
+        telemetrySeconds = defaults.double(forKey: "anonymousTrackedSeconds")
+        telemetryEnabled = defaults.object(forKey: "anonymousTotalsEnabled") == nil || defaults.bool(forKey: "anonymousTotalsEnabled")
+        telemetryInstallID = defaults.string(forKey: "anonymousInstallID") ?? UUID().uuidString.lowercased()
+        defaults.set(telemetryInstallID, forKey: "anonymousInstallID")
         // Migrate existing per-app history to explicit category contributions.
         if let history = ledger.apps, history.values.contains(where: { $0.createSeconds == nil || $0.consumeSeconds == nil }) {
             let attributed = history.values.reduce(0) { $0 + max(0, $1.seconds - ($1.unclassified ?? 0)) }
@@ -839,6 +847,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(timer!, forMode: .common)
         panel.applyTheme(); render(); showPopover(); checkBrowser()
+        reportTelemetry()
         if UpdateCredential.load() == nil { showUpdateSignIn() }
     }
     func rollover() {
@@ -856,6 +865,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let data = try? JSONEncoder().encode(ledger) { defaults.set(data, forKey: "ledger") }
         if let data = try? JSONEncoder().encode(history) { defaults.set(data, forKey: "history") }
         defaults.set(rules, forKey: "rules")
+        defaults.set(telemetrySeconds, forKey: "anonymousTrackedSeconds")
     }
     func historyEntries() -> [DaySummary] {
         var entries = history.filter { $0.day != ledger.day }
@@ -875,9 +885,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !paused && !sleeping && !idle && oldDay == ledger.day {
             ledger.record(elapsed, mode: mode, appID: activeID, appName: activeName)
             if browserID == "com.google.Chrome" && activeID.hasPrefix("site:") && mode == nil { chromeSessionSites.insert(activeID) }
-            if elapsed > 0 && elapsed <= 3 && !activeID.isEmpty { activeSeconds += elapsed }
+            if elapsed > 0 && elapsed <= 3 && !activeID.isEmpty {
+                activeSeconds += elapsed; telemetrySeconds += elapsed
+            }
         }
         ticks += 1; if ticks % 10 == 0 { save() }
+        if ticks % 900 == 0 { reportTelemetry() }
         if ticks % 3 == 0 && !sleeping && !paused { checkBrowser() }
         render()
     }
@@ -967,6 +980,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.target = self; menu.addItem(item)
             let account = NSMenuItem(title: UpdateCredential.load() == nil ? "Sign In for Updates…" : "Update Account…", action: #selector(updateAccount), keyEquivalent: "")
             account.target = self; menu.addItem(account)
+            let telemetry = NSMenuItem(title: "Share Anonymous Total", action: #selector(toggleTelemetry), keyEquivalent: "")
+            telemetry.target = self; telemetry.state = telemetryEnabled ? .on : .off; menu.addItem(telemetry)
             menu.addItem(.separator())
             let quit = NSMenuItem(title: "Quit Ratio", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
             quit.target = NSApp; menu.addItem(quit)
@@ -979,6 +994,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updaterController.checkForUpdates(nil)
     }
     @objc func updateAccount() { showUpdateSignIn() }
+    @objc func toggleTelemetry() {
+        telemetryEnabled.toggle(); defaults.set(telemetryEnabled, forKey: "anonymousTotalsEnabled")
+        if telemetryEnabled { reportTelemetry() }
+    }
+    func reportTelemetry() {
+        guard telemetryEnabled, !telemetryInstallID.isEmpty,
+              Date().timeIntervalSince(lastTelemetryReport) >= 60,
+              let credential = UpdateCredential.load() else { return }
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let body: [String: Any] = ["install": telemetryInstallID, "totalSeconds": Int(telemetrySeconds), "version": version]
+        guard let data = try? JSONSerialization.data(withJSONObject: body),
+              let url = URL(string: "https://visualizevalue.com/api/ratio/telemetry") else { return }
+        var request = URLRequest(url: url); request.httpMethod = "POST"; request.timeoutInterval = 10
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer " + credential.token, forHTTPHeaderField: "Authorization"); request.httpBody = data
+        lastTelemetryReport = Date()
+        URLSession.shared.dataTask(with: request).resume()
+    }
     func enableAutomaticUpdates() {
         updaterController.updater.automaticallyChecksForUpdates = true
         updaterController.updater.automaticallyDownloadsUpdates = true
@@ -1056,7 +1089,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.refreshApps()
         panel.needsDisplay = true
     }
-    func applicationWillTerminate(_ notification: Notification) { save() }
+    func applicationWillTerminate(_ notification: Notification) { save(); reportTelemetry() }
 }
 
 if CommandLine.arguments.contains("--preview") {
