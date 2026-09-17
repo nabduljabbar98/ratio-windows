@@ -41,6 +41,21 @@ open Ratio.app
 
 Automatic updates for the distributed build use Sparkle. Update downloads require a verified Ratio purchase; this does not prevent local builds or modify local tracking data.
 
+## Build the Windows app
+
+```cmd
+cd ratio\windows
+build.bat
+```
+
+Or using PowerShell:
+```powershell
+cd ratio\windows
+.\build.ps1
+```
+
+This compiles a standalone, native 64-bit `Ratio.exe` (< 500 KB) with zero external dependencies and runs the accounting self-tests. See [`windows/README.md`](windows/README.md) for full architecture and configuration details.
+
 ## Contributing
 
 Issues and focused pull requests are welcome. Please keep the interface compact, preserve local-first tracking, and do not add collection of app names, sites, window titles, or browsing history.

@@ -11,3 +11,8 @@ native/Ratio.app/Contents/_CodeSignature/
 native/vendor/
 native/Ratio.app/Contents/Frameworks/
 native/.release/
+windows/build/
+*.pdb
+*.ilk
+*.obj
+*.map
