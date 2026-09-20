@@ -29,6 +29,7 @@
 #pragma comment(lib, "wtsapi32.lib")
 
 #define WM_BROWSER_URL_RESULT (WM_USER + 102)
+#define WM_SHOW_FLYOUT (WM_USER + 105)
 
 class RatioApp {
 public:
@@ -325,6 +326,14 @@ static LRESULT CALLBACK MsgWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
         return 0;
     }
 
+    case WM_SHOW_FLYOUT:
+        Logger::log("Received WM_SHOW_FLYOUT. Displaying flyout window on screen.");
+        if (g_app && g_app->ratioWindow) {
+            RECT trayRect = g_app->trayIcon ? g_app->trayIcon->getTrayIconRect() : RECT{0,0,0,0};
+            g_app->ratioWindow->showNear(trayRect);
+        }
+        return 0;
+
     case WM_TRAYICON:
         if (lParam == WM_LBUTTONUP) {
             if (g_app && g_app->ratioWindow) {
@@ -372,6 +381,7 @@ static LRESULT CALLBACK MsgWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
         return 0;
 
     case WM_DESTROY:
+        Logger::log("WM_DESTROY received in MsgWndProc.");
         PostQuitMessage(0);
         return 0;
     }
@@ -403,9 +413,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR lpCmdLine, int) {
     }
 
     // Mutex to ensure single instance
-    HANDLE hMutex = CreateMutexW(NULL, TRUE, L"Global\\VisualizeValue_Ratio_SingleInstance");
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        CloseHandle(hMutex);
+    HANDLE hMutex = CreateMutexW(NULL, TRUE, L"Local\\VisualizeValue_Ratio_SingleInstance");
+    if (!hMutex || GetLastError() == ERROR_ALREADY_EXISTS) {
+        Logger::log("Another instance is already running. Signaling it to show flyout window...");
+        HWND hExisting = FindWindowW(L"RatioMsgReceiver", L"RatioMsg");
+        if (hExisting) {
+            PostMessageW(hExisting, WM_SHOW_FLYOUT, 0, 0);
+        }
+        if (hMutex) CloseHandle(hMutex);
         return 0;
     }
 
@@ -435,18 +450,24 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR lpCmdLine, int) {
     mc.lpszClassName = L"RatioMsgReceiver";
     RegisterClassExW(&mc);
 
+    Logger::log("Creating hidden msg window...");
     app.hMsgWnd = CreateWindowExW(0, L"RatioMsgReceiver", L"RatioMsg", WS_POPUP, 0, 0, 0, 0, NULL, NULL, hInstance, NULL);
+    Logger::log("hMsgWnd created: " + std::to_string((uintptr_t)app.hMsgWnd));
 
     // Register session notifications
     SystemMonitor::registerSession(app.hMsgWnd);
 
     // Initialize Tray Icon
+    Logger::log("Initializing tray icon...");
     app.trayIcon = std::make_unique<TrayIcon>(app.hMsgWnd);
-    app.trayIcon->init(hInstance);
+    bool trayOk = app.trayIcon->init(hInstance);
+    Logger::log("Tray icon init result: " + std::string(trayOk ? "true" : "false"));
 
     // Initialize Flyout Window
+    Logger::log("Initializing flyout window...");
     app.ratioWindow = std::make_unique<RatioWindow>();
-    app.ratioWindow->create(hInstance);
+    bool winOk = app.ratioWindow->create(hInstance);
+    Logger::log("Flyout window create result: " + std::string(winOk ? "true" : "false"));
     app.ratioWindow->setDataSource(&app.ledger, &app.history, &app.rules, &app.activeID, &app.activeName, &app.mode);
 
     // Wire up callbacks
@@ -455,22 +476,37 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR lpCmdLine, int) {
     app.ratioWindow->onTogglePause = [&app]() { app.togglePause(); };
     app.ratioWindow->onResetAll = [&app]() { app.resetAll(); };
     app.ratioWindow->onToggleTheme = [&app]() { app.toggleTheme(); };
-    app.ratioWindow->onQuit = [&app]() { DestroyWindow(app.hMsgWnd); };
+    app.ratioWindow->onQuit = [&app]() { 
+        Logger::log("onQuit invoked.");
+        DestroyWindow(app.hMsgWnd); 
+    };
 
     // Initial check of current app
+    Logger::log("Checking initial active process...");
     ActiveProcessInfo initialApp = ProcessTracker::getActiveProcess(GetCurrentProcessId());
     app.updateApp(initialApp);
     app.render();
+
+    // Pop up flyout on initial start so user sees Ratio immediately
+    RECT trayRect = app.trayIcon ? app.trayIcon->getTrayIconRect() : RECT{0,0,0,0};
+    app.ratioWindow->showNear(trayRect);
 
     // Start 1-second accounting timer
     SetTimer(app.hMsgWnd, 1, 1000, NULL);
 
     // Message loop
+    Logger::log("Entering message loop...");
     MSG msg;
-    while (GetMessageW(&msg, NULL, 0, 0)) {
+    BOOL bRet;
+    while ((bRet = GetMessageW(&msg, NULL, 0, 0)) != 0) {
+        if (bRet == -1) {
+            Logger::log("GetMessage returned -1, error: " + std::to_string(GetLastError()));
+            break;
+        }
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
+    Logger::log("Exited message loop, msg=" + std::to_string(msg.message) + " wParam=" + std::to_string(msg.wParam));
 
     // Cleanup
     SystemMonitor::unregisterSession(app.hMsgWnd);

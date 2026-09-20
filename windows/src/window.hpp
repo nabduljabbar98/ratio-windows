@@ -64,10 +64,25 @@ public:
     void showNear(const RECT& anchorRect) {
         if (!m_hwnd) return;
 
-        // Position window right above/below the tray icon
         int width = static_cast<int>(360 * m_scale);
         int height = static_cast<int>(352 * m_scale);
 
+        if (anchorRect.left == 0 && anchorRect.right == 0 && anchorRect.top == 0 && anchorRect.bottom == 0) {
+            POINT pt;
+            GetCursorPos(&pt);
+            HMONITOR hMon = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
+            MONITORINFO mi = { sizeof(MONITORINFO) };
+            GetMonitorInfoW(hMon, &mi);
+            int x = mi.rcWork.right - width - 16;
+            int y = mi.rcWork.bottom - height - 16;
+            SetWindowPos(m_hwnd, HWND_TOPMOST, x, y, width, height, SWP_SHOWWINDOW);
+            SetForegroundWindow(m_hwnd);
+            m_visible = true;
+            InvalidateRect(m_hwnd, NULL, FALSE);
+            return;
+        }
+
+        // Position window right above/below the tray icon
         HMONITOR hMon = MonitorFromRect(&anchorRect, MONITOR_DEFAULTTONEAREST);
         MONITORINFO mi = { sizeof(MONITORINFO) };
         GetMonitorInfoW(hMon, &mi);
