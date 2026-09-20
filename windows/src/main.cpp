@@ -15,6 +15,7 @@
 #include "system_monitor.hpp"
 #include "tray_icon.hpp"
 #include "window.hpp"
+#include "logger.hpp"
 
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -91,6 +92,9 @@ public:
 
     void updateApp(const ActiveProcessInfo& proc) {
         if (proc.appID.empty()) return;
+        if (activeID != proc.appID) {
+            Logger::log("Foreground app switched: " + proc.appID + " (" + (proc.friendlyName.empty() ? proc.exeName : proc.friendlyName) + ")");
+        }
         activeSeconds = 0.0;
         activeID = proc.appID;
         activeName = proc.friendlyName.empty() ? proc.exeName : proc.friendlyName;
@@ -121,6 +125,8 @@ public:
         if (browserExe.empty()) return;
         std::string key = host.empty() ? browserExe : ("site:" + host);
         if (key == activeID) return;
+
+        Logger::log("Browser site detected: " + key + (host.empty() ? "" : " (hostname: " + host + ")"));
 
         // Settle previous context before switching to new site
         settleTime();
@@ -403,6 +409,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR lpCmdLine, int) {
         return 0;
     }
 
+    Logger::log("=== Ratio for Windows started (PID: " + std::to_string(GetCurrentProcessId()) + ") ===");
+
     // Initialize GDI+
     Gdiplus::GdiplusStartupInput gdiplusStartupInput;
     ULONG_PTR gdiplusToken;
@@ -414,6 +422,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR lpCmdLine, int) {
     // Load persisted data
     Storage::load(app.ledger, app.history, app.rules, app.lightMode, app.paused,
                   app.telemetrySeconds, app.telemetryEnabled, app.installID);
+    Logger::log("Loaded data. Ledger day: " + app.ledger.day + ", rules count: " + std::to_string(app.rules.size()));
     app.rollover();
     app.save();
 
