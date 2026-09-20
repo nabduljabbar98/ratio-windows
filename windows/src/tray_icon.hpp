@@ -54,11 +54,16 @@ public:
         m_lastTracking = tracking;
 
         // Tooltip
-        std::string tipStr = "Ratio · " + state + (activeName.empty() ? "" : (" · " + activeName));
-        int len = MultiByteToWideChar(CP_UTF8, 0, tipStr.c_str(), -1, NULL, 0);
-        std::wstring wTip(len > 0 ? len : 1, L'\0');
-        if (len > 0) {
-            MultiByteToWideChar(CP_UTF8, 0, tipStr.c_str(), -1, &wTip[0], len);
+        std::wstring wTip;
+        if (createPercent > 0 || consumePercent > 0) {
+            wchar_t tipBuf[128];
+            swprintf_s(tipBuf, L"Ratio: %s %d/%d (%d%% %s) \u00B7 %s",
+                       symbol.c_str(), createPercent, consumePercent,
+                       createPercent, (symbol == L"\u2191" ? L"Create" : (symbol == L"\u2193" ? L"Consume" : L"Tracked")),
+                       utf8ToWide(activeName).c_str());
+            wTip = tipBuf;
+        } else {
+            wTip = L"Ratio: " + symbol + L" \u00B7 " + utf8ToWide(activeName);
         }
         if (wTip.length() >= 128) wTip = wTip.substr(0, 127);
         wcscpy_s(m_nid.szTip, wTip.c_str());
@@ -129,6 +134,15 @@ private:
     std::string m_lastActiveName;
     bool m_lastTracking = false;
 
+    static std::wstring utf8ToWide(const std::string& str) {
+        if (str.empty()) return L"";
+        int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, NULL, 0);
+        if (len <= 1) return L"";
+        std::wstring w(len - 1, 0);
+        MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &w[0], len);
+        return w;
+    }
+
     HICON createDynamicIcon(const std::wstring& symbol, int createPercent, int consumePercent, bool tracking) {
         int iconSize = 32; // Standard High-DPI tray icon size
 
@@ -136,7 +150,7 @@ private:
         Bitmap bmp(iconSize, iconSize, PixelFormat32bppARGB);
         Graphics g(&bmp);
         g.SetSmoothingMode(SmoothingModeAntiAlias);
-        g.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
+        g.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
         g.Clear(Color(0, 0, 0, 0));
 
         // Color based on symbol
@@ -147,16 +161,31 @@ private:
         else if (!tracking) color = Color(255, 180, 180, 180);      // Neutral light gray
 
         SolidBrush brush(color);
-
         FontFamily fontFamily(L"Segoe UI");
-        Gdiplus::Font font(&fontFamily, 22.0f, FontStyleBold, UnitPixel);
 
         StringFormat format;
         format.SetAlignment(StringAlignmentCenter);
         format.SetLineAlignment(StringAlignmentCenter);
 
-        RectF r(0.0f, 0.0f, (REAL)iconSize, (REAL)iconSize);
-        g.DrawString(symbol.c_str(), -1, &font, r, &format, &brush);
+        if (createPercent > 0 || consumePercent > 0) {
+            // Draw arrow symbol on top row
+            Gdiplus::Font fontArrow(&fontFamily, 14.0f, FontStyleBold, UnitPixel);
+            RectF rArrow(0.0f, 0.0f, 32.0f, 16.0f);
+            g.DrawString(symbol.c_str(), -1, &fontArrow, rArrow, &format, &brush);
+
+            // Draw ratio percentage (e.g. "58") on bottom row
+            Gdiplus::Font fontNum(&fontFamily, 11.0f, FontStyleBold, UnitPixel);
+            RectF rNum(0.0f, 15.0f, 32.0f, 17.0f);
+            wchar_t numBuf[8];
+            swprintf_s(numBuf, L"%d", createPercent);
+            SolidBrush numBrush(Color(255, 255, 255, 255));
+            g.DrawString(numBuf, -1, &fontNum, rNum, &format, &numBrush);
+        } else {
+            // Full-size symbol
+            Gdiplus::Font font(&fontFamily, 22.0f, FontStyleBold, UnitPixel);
+            RectF r(0.0f, 0.0f, 32.0f, 32.0f);
+            g.DrawString(symbol.c_str(), -1, &font, r, &format, &brush);
+        }
 
         HICON hIcon = nullptr;
         bmp.GetHICON(&hIcon);

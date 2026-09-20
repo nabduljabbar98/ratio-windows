@@ -204,12 +204,91 @@ private:
     DWORD m_showTime = 0;
 
     bool isInteractivePoint(int x, int y) {
-        if (y >= 0 && y < 44) return true; // Tabs / Header
-        if (!m_showingHistory && y >= 44 && y < 88 && x >= 272) return true; // Badge
-        if (m_selectedTab == 0 && !m_showingHistory && y >= 264 && y < 308) return true; // Create/Consume
-        if (m_selectedTab == 2 && !m_showingHistory && y >= 88 && y < 308 && x >= 272) return true; // Review buttons
+        if (!m_showingHistory && y >= 44 && y < 308 && x >= 272) return true; // [↑] or [↓] buttons
         if (y >= 308 && y < 352) return true; // Bottom Toolbar
         return false;
+    }
+
+    static std::wstring formatAppName(const std::string& key, const std::string& rawName) {
+        std::string name = rawName;
+        if (name.empty()) {
+            if (key.rfind("site:", 0) == 0) name = key.substr(5);
+            else name = key;
+        }
+        if (name.length() > 4 && name.substr(name.length() - 4) == ".exe") {
+            name = name.substr(0, name.length() - 4);
+        }
+        std::wstring w = utf8ToWide(name);
+        for (auto& c : w) {
+            c = towupper(c);
+        }
+        return w;
+    }
+
+    std::string getAppMode(const std::string& id) {
+        const auto& rul = getRules();
+        auto it = rul.find(id);
+        if (it != rul.end()) return it->second;
+        std::string m = Classifier::appMode(id);
+        if (m.empty() && id.rfind("site:", 0) == 0) {
+            m = Classifier::siteMode(id.substr(5));
+        }
+        return m;
+    }
+
+    std::vector<std::pair<std::string, AppUsage>> getAppList() {
+        std::vector<std::pair<std::string, AppUsage>> list;
+        const auto& led = getLedger();
+        const std::string& actID = getActiveID();
+
+        // Put active app first if it exists
+        if (!actID.empty()) {
+            auto itAct = led.apps.find(actID);
+            if (itAct != led.apps.end()) {
+                list.emplace_back(itAct->first, itAct->second);
+            } else {
+                list.emplace_back(actID, AppUsage{ getActiveName(), 0.0 });
+            }
+        }
+
+        // Add other apps
+        std::vector<std::pair<std::string, AppUsage>> others;
+        for (const auto& [k, v] : led.apps) {
+            if (k != actID) {
+                others.emplace_back(k, v);
+            }
+        }
+
+        std::sort(others.begin(), others.end(), [](const auto& a, const auto& b) {
+            if (a.second.lastUsed == b.second.lastUsed) return a.second.seconds > b.second.seconds;
+            return a.second.lastUsed > b.second.lastUsed;
+        });
+
+        for (auto& item : others) {
+            list.push_back(std::move(item));
+        }
+
+        return list;
+    }
+
+    void copyShareTotal() {
+        const auto& led = getLedger();
+        double total = led.create + led.consume;
+        int c = total > 0.0 ? static_cast<int>(std::round((led.create / total) * 100.0)) : 0;
+        wchar_t buf[256];
+        swprintf_s(buf, L"Ratio: \u2191 %d%% CREATING / \u2193 %d%% CONSUMING today via https://visualizevalue.com/ratio", c, 100 - c);
+
+        if (OpenClipboard(m_hwnd)) {
+            EmptyClipboard();
+            size_t bytes = (wcslen(buf) + 1) * sizeof(wchar_t);
+            HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, bytes);
+            if (hMem) {
+                memcpy(GlobalLock(hMem), buf, bytes);
+                GlobalUnlock(hMem);
+                SetClipboardData(CF_UNICODETEXT, hMem);
+            }
+            CloseClipboard();
+        }
     }
 
     static std::wstring formatShortDay(const std::string& yyyymmdd) {
@@ -298,8 +377,11 @@ private:
 
         case WM_MOUSEWHEEL: {
             short delta = GET_WHEEL_DELTA_WPARAM(wParam);
-            m_scrollOffset -= (delta / WHEEL_DELTA) * 25;
+            m_scrollOffset -= (delta / WHEEL_DELTA) * 44;
             if (m_scrollOffset < 0) m_scrollOffset = 0;
+            auto list = getAppList();
+            int maxScroll = std::max(0, static_cast<int>(list.size() * 44) - 264);
+            if (m_scrollOffset > maxScroll) m_scrollOffset = maxScroll;
             InvalidateRect(hwnd, NULL, FALSE);
             return 0;
         }
@@ -312,59 +394,18 @@ private:
     }
 
     void handleClick(int x, int y) {
-        // Tab Header: 0..44
-        if (y >= 0 && y < 44) {
-            if (x >= 0 && x < 180) {
-                m_selectedTab = 0;
-                m_showingHistory = false;
-                InvalidateRect(m_hwnd, NULL, FALSE);
-                return;
-            } else if (x >= 180 && x < 360) {
-                m_selectedTab = 1;
-                m_showingHistory = false;
-                m_scrollOffset = 0;
-                InvalidateRect(m_hwnd, NULL, FALSE);
-                return;
-            }
-        }
-
-        // Notification badge: X: 272..360, Y: 44..88 (in header)
-        if (y >= 44 && y < 88 && x >= 272 && !m_showingHistory) {
-            m_reviewingPending = !m_reviewingPending;
-            m_selectedTab = 2;
-            m_scrollOffset = 0;
-            InvalidateRect(m_hwnd, NULL, FALSE);
-            return;
-        }
-
-        // Ratio Tab mode buttons: Y: 264..308
-        if (m_selectedTab == 0 && !m_showingHistory) {
-            if (y >= 264 && y < 308) {
-                if (x >= 0 && x < 180) {
-                    if (onChooseMode) onChooseMode("create");
+        // App List: Y: 44..308
+        if (!m_showingHistory && y >= 44 && y < 308) {
+            auto list = getAppList();
+            int rowIdx = (y - 44 + m_scrollOffset) / 44;
+            if (rowIdx >= 0 && rowIdx < static_cast<int>(list.size())) {
+                const std::string& appKey = list[rowIdx].first;
+                if (x >= 272 && x < 316) {
+                    if (onReviewApp) onReviewApp(appKey, "create");
                     return;
-                } else if (x >= 180 && x < 360) {
-                    if (onChooseMode) onChooseMode("consume");
+                } else if (x >= 316 && x < 360) {
+                    if (onReviewApp) onReviewApp(appKey, "consume");
                     return;
-                }
-            }
-        }
-
-        // Review list buttons: Tab 2 (Review) rows
-        if (m_selectedTab == 2 && !m_showingHistory) {
-            // Y: 88..308
-            if (y >= 88 && y < 308) {
-                auto pending = getPendingList();
-                int rowIdx = (y - 88 + m_scrollOffset) / 44;
-                if (rowIdx >= 0 && rowIdx < static_cast<int>(pending.size())) {
-                    const std::string& appKey = pending[rowIdx].first;
-                    if (x >= 272 && x < 316) {
-                        if (onReviewApp) onReviewApp(appKey, "create");
-                        return;
-                    } else if (x >= 316 && x < 360) {
-                        if (onReviewApp) onReviewApp(appKey, "consume");
-                        return;
-                    }
                 }
             }
         }
@@ -372,20 +413,24 @@ private:
         // Bottom Toolbar: Y: 308..352
         if (y >= 308 && y < 352) {
             if (x >= 0 && x < 44) {
-                // Pause/Resume
-                if (onTogglePause) onTogglePause();
-                return;
-            } else if (x >= 44 && x < 88) {
                 // History toggle
                 m_showingHistory = !m_showingHistory;
                 m_scrollOffset = 0;
                 InvalidateRect(m_hwnd, NULL, FALSE);
                 return;
-            } else if (x >= 88 && x < 202) {
+            } else if (x >= 44 && x < 88) {
+                // Pause/Resume
+                if (onTogglePause) onTogglePause();
+                return;
+            } else if (x >= 88 && x < 180) {
+                // Share Total
+                copyShareTotal();
+                return;
+            } else if (x >= 180 && x < 272) {
                 // Reset / Undo
                 if (onResetAll) onResetAll();
                 return;
-            } else if (x >= 202 && x < 316) {
+            } else if (x >= 272 && x < 316) {
                 // Quit
                 if (onQuit) onQuit();
                 return;
@@ -395,21 +440,6 @@ private:
                 return;
             }
         }
-    }
-
-    std::vector<std::pair<std::string, AppUsage>> getPendingList() {
-        std::vector<std::pair<std::string, AppUsage>> list;
-        const auto& led = getLedger();
-        for (const auto& [k, v] : led.apps) {
-            if (!m_reviewingPending || v.unclassified >= 1.0) {
-                list.emplace_back(k, v);
-            }
-        }
-        std::sort(list.begin(), list.end(), [](const auto& a, const auto& b) {
-            if (a.second.lastUsed == b.second.lastUsed) return a.second.seconds > b.second.seconds;
-            return a.second.lastUsed > b.second.lastUsed;
-        });
-        return list;
     }
 
     void paint(HDC hdc) {
@@ -440,7 +470,6 @@ private:
             }
             Gdiplus::Font font12(monoFamily.get(), 12, FontStyleRegular, UnitPixel);
             Gdiplus::Font font12Bold(monoFamily.get(), 12, FontStyleBold, UnitPixel);
-            Gdiplus::Font font48(monoFamily.get(), 48, FontStyleRegular, UnitPixel);
             Gdiplus::Font font10Bold(monoFamily.get(), 10, FontStyleBold, UnitPixel);
 
             SolidBrush textBrush(UI::panelText(m_lightMode));
@@ -448,6 +477,7 @@ private:
             SolidBrush createBrush(UI::createColor());
             SolidBrush consumeBrush(UI::consumeColor());
             SolidBrush unclassifiedBrush(UI::unclassifiedColor());
+            SolidBrush dimBrush(Color(255, 90, 90, 90));
 
             StringFormat centerFormat;
             centerFormat.SetAlignment(StringAlignmentCenter);
@@ -463,239 +493,154 @@ private:
 
             const Ledger& led = getLedger();
             const auto& hist = getHistory();
-            const auto& rul = getRules();
             const std::string& actID = getActiveID();
-            const std::string& curMode = getMode();
 
-            // 1. Top Tabs (0..44)
-            if (!m_showingHistory) {
-                SolidBrush tab0Bg(m_selectedTab == 0 ? UI::selectionBackground(m_lightMode) : UI::panelBackground(m_lightMode));
-                g.FillRectangle(&tab0Bg, 0.0f, 0.0f, 180.0f, 44.0f);
-                g.DrawString(L"RATIO", -1, &font12, RectF(0.0f, 0.0f, 180.0f, 44.0f), &centerFormat, &textBrush);
-
-                SolidBrush tab1Bg(m_selectedTab == 1 ? UI::selectionBackground(m_lightMode) : UI::panelBackground(m_lightMode));
-                g.FillRectangle(&tab1Bg, 180.0f, 0.0f, 180.0f, 44.0f);
-                g.DrawString(L"APPS", -1, &font12, RectF(180.0f, 0.0f, 180.0f, 44.0f), &centerFormat, &textBrush);
-
-                UI::drawHairline(g, 180.0f, 0.0f, 1.0f, 44.0f, m_lightMode);
-                UI::drawHairline(g, 0.0f, 44.0f, 360.0f, 1.0f, m_lightMode);
-            } else {
-                // History Title
-                g.DrawString(L"HISTORY", -1, &font12Bold, RectF(16.0f, 0.0f, 200.0f, 44.0f), &leftFormat, &textBrush);
-                std::wstring countStr = std::to_wstring(hist.size() + 1) + L" DAYS";
-                g.DrawString(countStr.c_str(), -1, &font12, RectF(180.0f, 0.0f, 164.0f, 44.0f), &rightFormat, &grayBrush);
-                UI::drawHairline(g, 0.0f, 44.0f, 360.0f, 1.0f, m_lightMode);
-            }
-
-            // Calculations
             double total = led.create + led.consume;
-            int c = total > 0.0 ? static_cast<int>(std::round((led.create / total) * 100.0)) : 0;
-            std::string state = m_paused ? "PAUSED" : (m_sleeping || m_idle ? "AWAY" : (curMode == "create" ? "CREATING" : (curMode == "consume" ? "CONSUMING" : "UNCLASSIFIED")));
-            bool tracking = !m_paused && !m_sleeping && !m_idle;
+            double frac = total > 0.0 ? (led.create / total) : 0.5;
 
-            // Notification button in top-right of content
-            int pendingCount = 0;
-            for (const auto& [k, v] : led.apps) {
-                if (v.unclassified >= 1.0) pendingCount++;
-            }
+            // 1. Top Header: Y = 0..44 (Screen 1)
+            // Left: ↑ 58.11% CREATING
+            wchar_t bufCreate[64], bufConsume[64];
+            double createPct = total > 0.0 ? (led.create / total * 100.0) : 0.0;
+            double consumePct = total > 0.0 ? (led.consume / total * 100.0) : 0.0;
+            swprintf_s(bufCreate, L"\u2191 %.2f%% CREATING", createPct);
+            swprintf_s(bufConsume, L"\u2193 %.2f%% CONSUMING", consumePct);
 
-            if (!m_showingHistory && m_selectedTab != 1) {
-                if (pendingCount > 0) {
-                    SolidBrush badgeBg(UI::unclassifiedColor());
-                    g.FillEllipse(&badgeBg, 324.0f, 12.0f, 20.0f, 20.0f);
-                    std::wstring countText = std::to_wstring(pendingCount);
-                    SolidBrush darkTxt(Color(255, 30, 30, 30));
-                    g.DrawString(countText.c_str(), -1, &font10Bold, RectF(324.0f, 12.0f, 20.0f, 20.0f), &centerFormat, &darkTxt);
-                } else {
-                    g.DrawString(L"\u2713", -1, &font12, RectF(324.0f, 12.0f, 20.0f, 20.0f), &centerFormat, &grayBrush);
+            g.DrawString(bufCreate, -1, &font12Bold, RectF(16.0f, 10.0f, 160.0f, 20.0f), &leftFormat, &createBrush);
+            g.DrawString(bufConsume, -1, &font12Bold, RectF(180.0f, 10.0f, 164.0f, 20.0f), &rightFormat, &consumeBrush);
+
+            // Split percentage bar (at Y = 36, height = 2px)
+            g.FillRectangle(&consumeBrush, 0.0f, 36.0f, 360.0f, 2.0f);
+            g.FillRectangle(&createBrush, 0.0f, 36.0f, (REAL)(360.0 * frac), 2.0f);
+
+            // Hairline at Y = 43
+            UI::drawHairline(g, 0.0f, 43.0f, 360.0f, 1.0f, m_lightMode);
+
+            // 2. Main Content: Y = 44..308 (Height = 264px)
+            if (!m_showingHistory) {
+                // ACTIVITY / CATEGORIZE VIEW (Screen 1 & Screen 3)
+                auto list = getAppList();
+                g.SetClip(RectF(0.0f, 44.0f, 360.0f, 264.0f));
+
+                if (list.empty()) {
+                    g.DrawString(L"ACTIVITY WILL APPEAR HERE", -1, &font12, RectF(0.0f, 150.0f, 360.0f, 30.0f), &centerFormat, &grayBrush);
                 }
-            }
 
-            if (m_showingHistory) {
-                // 30-Day History View
-                int y = 44 - m_scrollOffset;
-                // Add today's entry
+                for (size_t i = 0; i < list.size(); ++i) {
+                    int y = 44 + static_cast<int>(i) * 44 - m_scrollOffset;
+                    if (y + 44 < 44 || y > 308) continue;
+
+                    const auto& item = list[i];
+                    std::string assignedMode = getAppMode(item.first);
+                    std::wstring wName = formatAppName(item.first, item.second.name);
+                    bool isActive = (item.first == actID);
+
+                    // Row background
+                    if (isActive) {
+                        SolidBrush rowActiveBg(Color(m_lightMode ? 15 : 25, 40, 205, 65));
+                        g.FillRectangle(&rowActiveBg, 0.0f, (REAL)y, 272.0f, 44.0f);
+                    }
+
+                    // Green active dot and Name
+                    std::wstring displayName = (isActive ? L"\u25CF " : L"") + wName;
+                    SolidBrush* nameColor = assignedMode.empty() ? &unclassifiedBrush : &textBrush;
+                    g.DrawString(displayName.c_str(), -1, &font12Bold, RectF(16.0f, (REAL)y + 12.0f, 140.0f, 20.0f), &leftFormat, nameColor);
+
+                    // Percentage or duration
+                    wchar_t bufPct[32];
+                    if (total > 0.0) {
+                        double appPct = item.second.seconds / total * 100.0;
+                        swprintf_s(bufPct, L"%.2f%%", appPct);
+                    } else {
+                        swprintf_s(bufPct, L"%s", utf8ToWide(formatDuration(item.second.seconds)).c_str());
+                    }
+                    g.DrawString(bufPct, -1, &font12, RectF(150.0f, (REAL)y + 12.0f, 114.0f, 20.0f), &rightFormat, &grayBrush);
+
+                    // Hairline vertical divider at X = 272
+                    UI::drawHairline(g, 272.0f, (REAL)y, 1.0f, 44.0f, m_lightMode);
+
+                    // [↑] CREATE Button (272..316)
+                    SolidBrush btnCreateBg(assignedMode == "create" ? UI::selectionBackground(m_lightMode) : UI::panelBackground(m_lightMode));
+                    g.FillRectangle(&btnCreateBg, 272.0f, (REAL)y, 44.0f, 44.0f);
+                    g.DrawString(L"\u2191", -1, &font12Bold, RectF(272.0f, (REAL)y, 44.0f, 44.0f), &centerFormat,
+                                 assignedMode == "create" ? &createBrush : &dimBrush);
+
+                    // Hairline vertical divider at X = 316
+                    UI::drawHairline(g, 316.0f, (REAL)y, 1.0f, 44.0f, m_lightMode);
+
+                    // [↓] CONSUME Button (316..360)
+                    SolidBrush btnConsumeBg(assignedMode == "consume" ? UI::selectionBackground(m_lightMode) : UI::panelBackground(m_lightMode));
+                    g.FillRectangle(&btnConsumeBg, 316.0f, (REAL)y, 44.0f, 44.0f);
+                    g.DrawString(L"\u2193", -1, &font12Bold, RectF(316.0f, (REAL)y, 44.0f, 44.0f), &centerFormat,
+                                 assignedMode == "consume" ? &consumeBrush : &dimBrush);
+
+                    // Hairline horizontal divider
+                    UI::drawHairline(g, 0.0f, (REAL)y + 44.0f, 360.0f, 1.0f, m_lightMode);
+                }
+
+                g.ResetClip();
+            } else {
+                // 30-DAY HISTORY VIEW (Screen 5: 04 / CHANGE)
+                g.SetClip(RectF(0.0f, 44.0f, 360.0f, 264.0f));
+
                 std::vector<DaySummary> entries = hist;
                 if (total > 0.0) {
                     entries.insert(entries.begin(), DaySummary{ "TODAY", led.create, led.consume });
                 }
 
                 if (entries.empty()) {
-                    g.DrawString(L"NO HISTORY YET", -1, &font12, RectF(16.0f, 60.0f, 300.0f, 20.0f), &leftFormat, &grayBrush);
+                    g.DrawString(L"NO HISTORY YET", -1, &font12, RectF(0.0f, 150.0f, 360.0f, 30.0f), &centerFormat, &grayBrush);
                 }
 
-                for (const auto& entry : entries) {
-                    if (y >= 44 && y < 308) {
-                        std::wstring wDay = formatShortDay(entry.day);
-                        g.DrawString(wDay.c_str(), -1, &font12, RectF(16.0f, (REAL)y + 12.0f, 80.0f, 20.0f), &leftFormat, &grayBrush);
+                for (size_t index = 0; index < entries.size(); ++index) {
+                    int y = 44 + static_cast<int>(index) * 44 - m_scrollOffset;
+                    if (y + 44 < 44 || y > 308) continue;
 
-                        double eTotal = entry.create + entry.consume;
-                        double frac = eTotal > 0.0 ? (entry.create / eTotal) : 0.5;
-                        g.FillRectangle(&consumeBrush, 96.0f, (REAL)y + 20.0f, 150.0f, 4.0f);
-                        g.FillRectangle(&createBrush, 96.0f, (REAL)y + 20.0f, (REAL)(150.0 * frac), 4.0f);
+                    const auto& entry = entries[index];
+                    std::wstring wDay = formatShortDay(entry.day);
+                    g.DrawString(wDay.c_str(), -1, &font12, RectF(16.0f, (REAL)y + 12.0f, 64.0f, 20.0f), &leftFormat, &grayBrush);
 
-                        int eCreate = eTotal > 0.0 ? static_cast<int>(std::round(frac * 100.0)) : 0;
-                        std::wstring rText = eTotal > 0.0 ? (std::to_wstring(eCreate) + L"/" + std::to_wstring(100 - eCreate)) : L"\u2014/\u2014";
-                        SolidBrush* rColor = (eTotal == 0.0) ? &textBrush : (eCreate >= 50 ? &createBrush : &consumeBrush);
-                        g.DrawString(rText.c_str(), -1, &font12, RectF(260.0f, (REAL)y + 12.0f, 84.0f, 20.0f), &rightFormat, rColor);
+                    double eTotal = entry.create + entry.consume;
+                    double eFrac = eTotal > 0.0 ? (entry.create / eTotal) : 0.5;
+                    g.FillRectangle(&consumeBrush, 84.0f, (REAL)y + 21.0f, 164.0f, 2.0f);
+                    g.FillRectangle(&createBrush, 84.0f, (REAL)y + 21.0f, (REAL)(164.0 * eFrac), 2.0f);
 
-                        UI::drawHairline(g, 0.0f, (REAL)y + 44.0f, 360.0f, 1.0f, m_lightMode);
-                    }
-                    y += 44;
-                }
-            } else if (m_selectedTab == 0) {
-                // RATIO VIEW
-                // Status Header (44..88)
-                std::string liveStr = tracking ? "TRACKING" : state;
-                std::wstring wLive = utf8ToWide(liveStr);
-                g.DrawString(wLive.c_str(), -1, &font12, RectF(16.0f, 44.0f, 160.0f, 44.0f), &leftFormat, &grayBrush);
+                    int eCreate = eTotal > 0.0 ? static_cast<int>(std::round(eFrac * 100.0)) : 0;
+                    std::wstring rText = eTotal > 0.0 ? (std::to_wstring(eCreate) + L"/" + std::to_wstring(100 - eCreate)) : L"\u2014/\u2014";
+                    SolidBrush* rColor = (eTotal == 0.0) ? &textBrush : (eCreate >= 50 ? &createBrush : &consumeBrush);
+                    g.DrawString(rText.c_str(), -1, &font12Bold, RectF(260.0f, (REAL)y + 12.0f, 84.0f, 20.0f), &rightFormat, rColor);
 
-                double totalAppSeconds = 0.0;
-                for (const auto& [k, v] : led.apps) totalAppSeconds += v.seconds;
-                std::wstring wDur = utf8ToWide(formatDuration(totalAppSeconds));
-                g.DrawString(wDur.c_str(), -1, &font12, RectF(180.0f, 44.0f, 84.0f, 44.0f), &rightFormat, &grayBrush);
-
-                UI::drawHairline(g, 0.0f, 88.0f, 360.0f, 1.0f, m_lightMode);
-
-                // Big Ratio Number (88..180)
-                std::wstring ratioStr = total > 0.0 ? (std::to_wstring(c) + L" / " + std::to_wstring(100 - c)) : L"\u2014 / \u2014";
-                g.DrawString(ratioStr.c_str(), -1, &font48, RectF(0.0f, 95.0f, 360.0f, 65.0f), &centerFormat, &textBrush);
-
-                // Split percentage line (at Y = 175)
-                double frac = total > 0.0 ? (led.create / total) : 0.5;
-                g.FillRectangle(&consumeBrush, 0.0f, 175.0f, 360.0f, 2.0f);
-                g.FillRectangle(&createBrush, 0.0f, 175.0f, (REAL)(360.0 * frac), 2.0f);
-
-                // Percentage labels (180..210)
-                wchar_t bufCreate[64], bufConsume[64];
-                swprintf_s(bufCreate, L"\u2191 %.2f%% CREATING", total > 0.0 ? (led.create / total * 100.0) : 0.0);
-                swprintf_s(bufConsume, L"\u2193 %.2f%% CONSUMING", total > 0.0 ? (led.consume / total * 100.0) : 0.0);
-                g.DrawString(bufCreate, -1, &font12, RectF(16.0f, 185.0f, 160.0f, 20.0f), &leftFormat, &createBrush);
-                g.DrawString(bufConsume, -1, &font12, RectF(180.0f, 185.0f, 164.0f, 20.0f), &rightFormat, &consumeBrush);
-
-                UI::drawHairline(g, 0.0f, 215.0f, 360.0f, 1.0f, m_lightMode);
-
-                // Explanatory Note (215..264)
-                std::wstring wNote = m_paused ? L"Tracking paused. Click Resume to count." :
-                    (m_sleeping || m_idle ? L"Away \u00B7 counting resumes with activity." :
-                    (curMode.empty() ? L"App time is counting. Choose a mode to include it in your ratio." :
-                    utf8ToWide(state) + L" \u00B7 time updates every second.\nClick a mode to correct it."));
-                g.DrawString(wNote.c_str(), -1, &font12, RectF(16.0f, 220.0f, 328.0f, 40.0f), &leftFormat, &textBrush);
-
-                UI::drawHairline(g, 0.0f, 264.0f, 360.0f, 1.0f, m_lightMode);
-
-                // Mode Buttons (264..308)
-                SolidBrush createBg(curMode == "create" ? UI::selectionBackground(m_lightMode) : UI::panelBackground(m_lightMode));
-                g.FillRectangle(&createBg, 0.0f, 264.0f, 180.0f, 44.0f);
-                g.DrawString(L"\u2191 CREATE", -1, &font12Bold, RectF(0.0f, 264.0f, 180.0f, 44.0f), &centerFormat, 
-                             curMode == "create" ? &createBrush : &textBrush);
-
-                SolidBrush consumeBg(curMode == "consume" ? UI::selectionBackground(m_lightMode) : UI::panelBackground(m_lightMode));
-                g.FillRectangle(&consumeBg, 180.0f, 264.0f, 180.0f, 44.0f);
-                g.DrawString(L"\u2193 CONSUME", -1, &font12Bold, RectF(180.0f, 264.0f, 180.0f, 44.0f), &centerFormat,
-                             curMode == "consume" ? &consumeBrush : &textBrush);
-
-                UI::drawHairline(g, 180.0f, 264.0f, 1.0f, 44.0f, m_lightMode);
-            } else if (m_selectedTab == 1) {
-                // APPS LIST VIEW (44..308)
-                int y = 44 - m_scrollOffset;
-                auto pending = getPendingList();
-
-                if (pending.empty()) {
-                    g.DrawString(L"APP USE WILL APPEAR HERE", -1, &font12, RectF(16.0f, 60.0f, 300.0f, 20.0f), &leftFormat, &grayBrush);
+                    UI::drawHairline(g, 0.0f, (REAL)y + 44.0f, 360.0f, 1.0f, m_lightMode);
                 }
 
-                double totalAppSeconds = 0.0;
-                for (const auto& [k, v] : pending) totalAppSeconds += v.seconds;
-
-                for (const auto& [key, usage] : pending) {
-                    if (y >= 44 && y < 308) {
-                        std::wstring wName = utf8ToWide(usage.name + (key == actID ? " \u00B7" : ""));
-                        g.DrawString(wName.c_str(), -1, &font12, RectF(16.0f, (REAL)y + 10.0f, 220.0f, 20.0f), &leftFormat, &textBrush);
-
-                        std::wstring wDur = utf8ToWide(formatDuration(usage.seconds));
-                        g.DrawString(wDur.c_str(), -1, &font12, RectF(240.0f, (REAL)y + 10.0f, 104.0f, 20.0f), &rightFormat, &textBrush);
-
-                        // Relative progress bar
-                        double fraction = totalAppSeconds > 0.0 ? std::min(1.0, std::max(0.0, usage.seconds / totalAppSeconds)) : 0.0;
-                        SolidBrush barBrush(Color(255, 180, 180, 180));
-                        g.FillRectangle(&barBrush, 16.0f, (REAL)y + 36.0f, (REAL)(232.0 * fraction), 2.0f);
-
-                        UI::drawHairline(g, 0.0f, (REAL)y + 56.0f, 360.0f, 1.0f, m_lightMode);
-                    }
-                    y += 56;
-                }
-            } else if (m_selectedTab == 2) {
-                // REVIEW PENDING VIEW (44..308)
-                // Header (44..88)
-                g.DrawString(m_reviewingPending ? L"TO CATEGORIZE" : L"CATEGORIZE / ACTIVITY", -1, &font12Bold, RectF(16.0f, 44.0f, 250.0f, 44.0f), &leftFormat, &textBrush);
-                UI::drawHairline(g, 0.0f, 88.0f, 360.0f, 1.0f, m_lightMode);
-
-                int y = 88 - m_scrollOffset;
-                auto pending = getPendingList();
-
-                if (pending.empty()) {
-                    g.DrawString(L"All caught up.", -1, &font12, RectF(16.0f, 100.0f, 300.0f, 20.0f), &leftFormat, &grayBrush);
-                }
-
-                for (const auto& [key, usage] : pending) {
-                    if (y >= 88 && y < 308) {
-                        std::string assignedMode = "";
-                        auto rIt = rul.find(key);
-                        if (rIt != rul.end()) assignedMode = rIt->second;
-                        else assignedMode = Classifier::appMode(key);
-                        if (assignedMode.empty() && key.rfind("site:", 0) == 0) {
-                            assignedMode = Classifier::siteMode(key.substr(5));
-                        }
-
-                        std::wstring wName = utf8ToWide(usage.name);
-                        SolidBrush* nameColor = assignedMode.empty() ? &unclassifiedBrush : &textBrush;
-                        g.DrawString(wName.c_str(), -1, &font12, RectF(16.0f, (REAL)y + 12.0f, 140.0f, 20.0f), &leftFormat, nameColor);
-
-                        std::wstring wDur = utf8ToWide(formatDuration(usage.seconds));
-                        g.DrawString(wDur.c_str(), -1, &font12, RectF(156.0f, (REAL)y + 12.0f, 108.0f, 20.0f), &rightFormat, &textBrush);
-
-                        // ↑ Create button [272, y, 44, 44]
-                        SolidBrush btnCreateBg(assignedMode == "create" ? UI::selectionBackground(m_lightMode) : UI::panelBackground(m_lightMode));
-                        g.FillRectangle(&btnCreateBg, 272.0f, (REAL)y, 44.0f, 44.0f);
-                        g.DrawString(L"\u2191", -1, &font12Bold, RectF(272.0f, (REAL)y, 44.0f, 44.0f), &centerFormat,
-                                     assignedMode == "create" ? &createBrush : &grayBrush);
-
-                        // ↓ Consume button [316, y, 44, 44]
-                        SolidBrush btnConsumeBg(assignedMode == "consume" ? UI::selectionBackground(m_lightMode) : UI::panelBackground(m_lightMode));
-                        g.FillRectangle(&btnConsumeBg, 316.0f, (REAL)y, 44.0f, 44.0f);
-                        g.DrawString(L"\u2193", -1, &font12Bold, RectF(316.0f, (REAL)y, 44.0f, 44.0f), &centerFormat,
-                                     assignedMode == "consume" ? &consumeBrush : &grayBrush);
-
-                        UI::drawHairline(g, 272.0f, (REAL)y, 1.0f, 44.0f, m_lightMode);
-                        UI::drawHairline(g, 316.0f, (REAL)y, 1.0f, 44.0f, m_lightMode);
-                        UI::drawHairline(g, 0.0f, (REAL)y + 44.0f, 360.0f, 1.0f, m_lightMode);
-                    }
-                    y += 44;
-                }
+                g.ResetClip();
             }
 
-            // 4. Bottom Toolbar (308..352)
+            // 3. Bottom Toolbar: Y = 308..352 (Height = 44px)
             UI::drawHairline(g, 0.0f, 308.0f, 360.0f, 1.0f, m_lightMode);
 
-            // Pause: [0, 308, 44, 44]
-            g.DrawString(m_paused ? L"\u25B6" : L"\u2161", -1, &font12, RectF(0.0f, 308.0f, 44.0f, 44.0f), &centerFormat, &textBrush);
+            // History button: [0, 308, 44, 44]
+            if (m_showingHistory) {
+                UI::drawBackArrow(g, RectF(0.0f, 308.0f, 44.0f, 44.0f), UI::panelText(m_lightMode));
+            } else {
+                UI::drawHistoryClock(g, RectF(0.0f, 308.0f, 44.0f, 44.0f), UI::panelText(m_lightMode));
+            }
             UI::drawHairline(g, 44.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
 
-            // History: [44, 308, 44, 44]
-            if (m_showingHistory) {
-                UI::drawBackArrow(g, RectF(44.0f, 308.0f, 44.0f, 44.0f), UI::panelText(m_lightMode));
-            } else {
-                UI::drawHistoryClock(g, RectF(44.0f, 308.0f, 44.0f, 44.0f), UI::panelText(m_lightMode));
-            }
+            // Pause: [44, 308, 44, 44]
+            g.DrawString(m_paused ? L"\u25B6" : L"\u2161", -1, &font12, RectF(44.0f, 308.0f, 44.0f, 44.0f), &centerFormat, &textBrush);
             UI::drawHairline(g, 88.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
 
-            // Reset/Undo: [88, 308, 114, 44]
-            g.DrawString(m_undoActive ? L"UNDO" : L"RESET", -1, &font12, RectF(88.0f, 308.0f, 114.0f, 44.0f), &centerFormat, &textBrush);
-            UI::drawHairline(g, 202.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
+            // Share: [88, 308, 92, 44]
+            g.DrawString(L"SHARE \u2197", -1, &font12, RectF(88.0f, 308.0f, 92.0f, 44.0f), &centerFormat, &textBrush);
+            UI::drawHairline(g, 180.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
 
-            // Quit: [202, 308, 114, 44]
-            g.DrawString(L"QUIT", -1, &font12, RectF(202.0f, 308.0f, 114.0f, 44.0f), &centerFormat, &textBrush);
+            // Reset/Undo: [180, 308, 92, 44]
+            g.DrawString(m_undoActive ? L"UNDO" : L"RESET", -1, &font12, RectF(180.0f, 308.0f, 92.0f, 44.0f), &centerFormat, &textBrush);
+            UI::drawHairline(g, 272.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
+
+            // Quit: [272, 308, 44, 44]
+            g.DrawString(L"\u2715", -1, &font12, RectF(272.0f, 308.0f, 44.0f, 44.0f), &centerFormat, &textBrush);
             UI::drawHairline(g, 316.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
 
             // Theme (Moon/Sun): [316, 308, 44, 44]
@@ -705,7 +650,7 @@ private:
                 g.DrawString(L"\u2600", -1, &font12, RectF(316.0f, 308.0f, 44.0f, 44.0f), &centerFormat, &textBrush);
             }
 
-            // Outer 1 physical pixel border
+            // Outer border
             Pen borderPen(UI::gridColor(m_lightMode), 1.0f);
             g.DrawRectangle(&borderPen, 0.0f, 0.0f, 359.0f, 351.0f);
         }
