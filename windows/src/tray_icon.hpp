@@ -5,12 +5,14 @@
 #include <string>
 #include <algorithm>
 #include <vector>
+#include "ui_renderer.hpp"
 
 #define WM_TRAYICON (WM_USER + 100)
 #define ID_TRAY_EXIT 2001
 #define ID_TRAY_UPDATES 2002
 #define ID_TRAY_TELEMETRY 2003
 #define ID_TRAY_AUTOSTART 2004
+#define ID_TRAY_RESET 2005
 
 class TrayIcon {
 public:
@@ -99,6 +101,8 @@ public:
         AppendMenuW(hMenu, telFlags, ID_TRAY_TELEMETRY, L"Share Anonymous Total");
         
         AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+        AppendMenuW(hMenu, MF_STRING, ID_TRAY_RESET, L"Reset Today's Stats");
+        AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
         AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"Quit Ratio");
 
         SetForegroundWindow(m_hWnd);
@@ -151,39 +155,50 @@ private:
         Graphics g(&bmp);
         g.SetSmoothingMode(SmoothingModeAntiAlias);
         g.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
+        g.SetPixelOffsetMode(PixelOffsetModeHighQuality);
         g.Clear(Color(0, 0, 0, 0));
 
-        // Color based on symbol
-        Color color(255, 240, 240, 240); // Bright white
-        if (symbol == L"↑" || symbol == L"\u2191") color = Color(255, 40, 205, 65);       // Vivid green
-        else if (symbol == L"↓" || symbol == L"\u2193") color = Color(255, 255, 59, 48);   // Vivid red
-        else if (symbol == L"?" || symbol == L"\u003F") color = Color(255, 255, 159, 10);  // Vivid orange
-        else if (!tracking) color = Color(255, 180, 180, 180);      // Neutral light gray
+        // Draw prominent light-blue pill background (#E0EEFD) with crisp border (#93C5FD)
+        RectF pillRect(0.5f, 1.5f, 31.0f, 29.0f);
+        REAL radius = 7.0f;
 
-        SolidBrush brush(color);
+        SolidBrush pillBg(Color(255, 224, 238, 253)); // Prominent light-blue fill
+        UI::fillRoundedRect(g, &pillBg, pillRect, radius);
+
+        Pen pillBorder(Color(255, 147, 197, 253), 1.2f); // Sharp blue border
+        UI::drawRoundedRect(g, &pillBorder, pillRect, radius);
+
+        // Arrow color based on symbol
+        Color arrowColor(255, 15, 23, 42); // Dark slate
+        if (symbol == L"↑" || symbol == L"\u2191") arrowColor = Color(255, 16, 140, 50);       // Rich dark emerald green
+        else if (symbol == L"↓" || symbol == L"\u2193") arrowColor = Color(255, 215, 25, 25);   // Rich crimson red
+        else if (symbol == L"?" || symbol == L"\u003F") arrowColor = Color(255, 217, 119, 6);  // Vivid dark amber
+        else if (!tracking) arrowColor = Color(255, 100, 116, 139);      // Neutral slate
+
         FontFamily fontFamily(L"Segoe UI");
-
         StringFormat format;
         format.SetAlignment(StringAlignmentCenter);
         format.SetLineAlignment(StringAlignmentCenter);
 
         if (createPercent > 0 || consumePercent > 0) {
-            // Draw arrow symbol on top row
+            // Draw arrow symbol on top half
             Gdiplus::Font fontArrow(&fontFamily, 14.0f, FontStyleBold, UnitPixel);
-            RectF rArrow(0.0f, 0.0f, 32.0f, 16.0f);
-            g.DrawString(symbol.c_str(), -1, &fontArrow, rArrow, &format, &brush);
+            SolidBrush arrowBrush(arrowColor);
+            RectF rArrow(0.0f, 2.0f, 32.0f, 14.0f);
+            g.DrawString(symbol.c_str(), -1, &fontArrow, rArrow, &format, &arrowBrush);
 
-            // Draw ratio percentage (e.g. "58") on bottom row
-            Gdiplus::Font fontNum(&fontFamily, 11.0f, FontStyleBold, UnitPixel);
-            RectF rNum(0.0f, 15.0f, 32.0f, 17.0f);
+            // Draw ratio percentage (e.g. "58") on bottom half in bold dark navy (#0F172A)
+            Gdiplus::Font fontNum(&fontFamily, 12.0f, FontStyleBold, UnitPixel);
+            RectF rNum(0.0f, 14.0f, 32.0f, 15.0f);
             wchar_t numBuf[8];
             swprintf_s(numBuf, L"%d", createPercent);
-            SolidBrush numBrush(Color(255, 255, 255, 255));
+            SolidBrush numBrush(Color(255, 15, 23, 42)); // Extreme contrast against light blue pill
             g.DrawString(numBuf, -1, &fontNum, rNum, &format, &numBrush);
         } else {
-            // Full-size symbol
-            Gdiplus::Font font(&fontFamily, 22.0f, FontStyleBold, UnitPixel);
-            RectF r(0.0f, 0.0f, 32.0f, 32.0f);
+            // Full-size symbol in center of pill
+            Gdiplus::Font font(&fontFamily, 20.0f, FontStyleBold, UnitPixel);
+            RectF r(0.0f, 2.0f, 32.0f, 28.0f);
+            SolidBrush brush(arrowColor);
             g.DrawString(symbol.c_str(), -1, &font, r, &format, &brush);
         }
 

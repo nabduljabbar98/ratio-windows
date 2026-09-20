@@ -354,6 +354,11 @@ static LRESULT CALLBACK MsgWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
+        case ID_TRAY_RESET:
+            if (g_app) {
+                g_app->resetAll();
+            }
+            return 0;
         case ID_TRAY_EXIT:
             DestroyWindow(hwnd);
             return 0;
@@ -371,6 +376,21 @@ static LRESULT CALLBACK MsgWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
             return 0;
         }
         return 0;
+
+    case WM_SETTINGCHANGE:
+    case WM_THEMECHANGED: {
+        if (g_app) {
+            bool sysLight = UI::isSystemInLightMode();
+            if (g_app->lightMode != sysLight) {
+                g_app->lightMode = sysLight;
+                if (g_app->ratioWindow) {
+                    g_app->ratioWindow->setLightMode(sysLight);
+                }
+                g_app->render();
+            }
+        }
+        return 0;
+    }
 
     case WM_POWERBROADCAST:
         if (wParam == PBT_APMSUSPEND) {
@@ -445,7 +465,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR lpCmdLine, int) {
     // Load persisted data
     Storage::load(app.ledger, app.history, app.rules, app.lightMode, app.paused,
                   app.telemetrySeconds, app.telemetryEnabled, app.installID);
-    Logger::log("Loaded data. Ledger day: " + app.ledger.day + ", rules count: " + std::to_string(app.rules.size()));
+    // Automatically match Windows Dark/Light mode theme
+    app.lightMode = UI::isSystemInLightMode();
+    Logger::log("Loaded data. Ledger day: " + app.ledger.day + ", rules count: " + std::to_string(app.rules.size()) + ", sysLight: " + std::string(app.lightMode ? "true" : "false"));
     app.rollover();
     app.save();
 
@@ -482,6 +504,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR lpCmdLine, int) {
     bool winOk = app.ratioWindow->create(hInstance);
     Logger::log("Flyout window create result: " + std::string(winOk ? "true" : "false"));
     app.ratioWindow->setDataSource(&app.ledger, &app.history, &app.rules, &app.activeID, &app.activeName, &app.mode);
+    app.ratioWindow->setLightMode(app.lightMode);
 
     // Wire up callbacks
     app.ratioWindow->onChooseMode = [&app](const std::string& m) { app.chooseMode(m); };

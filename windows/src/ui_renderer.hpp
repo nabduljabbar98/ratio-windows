@@ -121,4 +121,41 @@ namespace UI {
         g.DrawLine(&pen, PointF(midX - 6.0f, midY), PointF(midX, midY + 6.0f));
         g.DrawLine(&pen, PointF(midX - 6.0f, midY), PointF(midX, midY - 6.0f));
     }
+
+    inline bool isSystemInLightMode() {
+        HKEY hKey = nullptr;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+            DWORD val = 0;
+            DWORD size = sizeof(val);
+            DWORD type = 0;
+            LONG res = RegQueryValueExW(hKey, L"AppsUseLightTheme", NULL, &type, (LPBYTE)&val, &size);
+            RegCloseKey(hKey);
+            if (res == ERROR_SUCCESS) {
+                return val != 0;
+            }
+        }
+        return false; // Default to dark mode if registry key not found
+    }
+
+    inline void fillRoundedRect(Graphics& g, Brush* brush, const RectF& rect, REAL radius) {
+        GraphicsPath path;
+        REAL d = radius * 2.0f;
+        path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+        path.AddArc(rect.X + rect.Width - d, rect.Y, d, d, 270, 90);
+        path.AddArc(rect.X + rect.Width - d, rect.Y + rect.Height - d, d, d, 0, 90);
+        path.AddArc(rect.X, rect.Y + rect.Height - d, d, d, 90, 90);
+        path.CloseFigure();
+        g.FillPath(brush, &path);
+    }
+
+    inline void drawRoundedRect(Graphics& g, Pen* pen, const RectF& rect, REAL radius) {
+        GraphicsPath path;
+        REAL d = radius * 2.0f;
+        path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+        path.AddArc(rect.X + rect.Width - d, rect.Y, d, d, 270, 90);
+        path.AddArc(rect.X + rect.Width - d, rect.Y + rect.Height - d, d, d, 0, 90);
+        path.AddArc(rect.X, rect.Y + rect.Height - d, d, d, 90, 90);
+        path.CloseFigure();
+        g.DrawPath(pen, &path);
+    }
 }

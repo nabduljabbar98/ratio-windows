@@ -174,6 +174,13 @@ public:
         }
     }
 
+    void setLightMode(bool lightMode) {
+        m_lightMode = lightMode;
+        if (m_hwnd) {
+            InvalidateRect(m_hwnd, NULL, FALSE);
+        }
+    }
+
 private:
     HINSTANCE m_hInstance = nullptr;
     HWND m_hwnd = nullptr;
@@ -412,31 +419,23 @@ private:
 
         // Bottom Toolbar: Y: 308..352
         if (y >= 308 && y < 352) {
-            if (x >= 0 && x < 44) {
+            if (x >= 0 && x < 60) {
                 // History toggle
                 m_showingHistory = !m_showingHistory;
                 m_scrollOffset = 0;
                 InvalidateRect(m_hwnd, NULL, FALSE);
                 return;
-            } else if (x >= 44 && x < 88) {
+            } else if (x >= 60 && x < 120) {
                 // Pause/Resume
                 if (onTogglePause) onTogglePause();
                 return;
-            } else if (x >= 88 && x < 180) {
+            } else if (x >= 120 && x < 300) {
                 // Share Total
                 copyShareTotal();
                 return;
-            } else if (x >= 180 && x < 272) {
-                // Reset / Undo
-                if (onResetAll) onResetAll();
-                return;
-            } else if (x >= 272 && x < 316) {
-                // Quit
-                if (onQuit) onQuit();
-                return;
-            } else if (x >= 316 && x < 360) {
-                // Theme toggle
-                if (onToggleTheme) onToggleTheme();
+            } else if (x >= 300 && x < 360) {
+                // Close flyout
+                hide();
                 return;
             }
         }
@@ -619,36 +618,24 @@ private:
             // 3. Bottom Toolbar: Y = 308..352 (Height = 44px)
             UI::drawHairline(g, 0.0f, 308.0f, 360.0f, 1.0f, m_lightMode);
 
-            // History button: [0, 308, 44, 44]
+            // History button: [0, 308, 60, 44]
             if (m_showingHistory) {
-                UI::drawBackArrow(g, RectF(0.0f, 308.0f, 44.0f, 44.0f), UI::panelText(m_lightMode));
+                UI::drawBackArrow(g, RectF(0.0f, 308.0f, 60.0f, 44.0f), UI::panelText(m_lightMode));
             } else {
-                UI::drawHistoryClock(g, RectF(0.0f, 308.0f, 44.0f, 44.0f), UI::panelText(m_lightMode));
+                UI::drawHistoryClock(g, RectF(0.0f, 308.0f, 60.0f, 44.0f), UI::panelText(m_lightMode));
             }
-            UI::drawHairline(g, 44.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
+            UI::drawHairline(g, 60.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
 
-            // Pause: [44, 308, 44, 44]
-            g.DrawString(m_paused ? L"\u25B6" : L"\u2161", -1, &font12, RectF(44.0f, 308.0f, 44.0f, 44.0f), &centerFormat, &textBrush);
-            UI::drawHairline(g, 88.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
+            // Pause: [60, 308, 60, 44]
+            g.DrawString(m_paused ? L"\u25B6" : L"\u2161", -1, &font12, RectF(60.0f, 308.0f, 60.0f, 44.0f), &centerFormat, &textBrush);
+            UI::drawHairline(g, 120.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
 
-            // Share: [88, 308, 92, 44]
-            g.DrawString(L"SHARE \u2197", -1, &font12, RectF(88.0f, 308.0f, 92.0f, 44.0f), &centerFormat, &textBrush);
-            UI::drawHairline(g, 180.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
+            // Share: [120, 308, 180, 44]
+            g.DrawString(L"SHARE \u2197", -1, &font12, RectF(120.0f, 308.0f, 180.0f, 44.0f), &centerFormat, &textBrush);
+            UI::drawHairline(g, 300.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
 
-            // Reset/Undo: [180, 308, 92, 44]
-            g.DrawString(m_undoActive ? L"UNDO" : L"RESET", -1, &font12, RectF(180.0f, 308.0f, 92.0f, 44.0f), &centerFormat, &textBrush);
-            UI::drawHairline(g, 272.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
-
-            // Quit: [272, 308, 44, 44]
-            g.DrawString(L"\u2715", -1, &font12, RectF(272.0f, 308.0f, 44.0f, 44.0f), &centerFormat, &textBrush);
-            UI::drawHairline(g, 316.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
-
-            // Theme (Moon/Sun): [316, 308, 44, 44]
-            if (m_lightMode) {
-                UI::drawWebMoon(g, RectF(316.0f, 308.0f, 44.0f, 44.0f), UI::panelText(m_lightMode));
-            } else {
-                g.DrawString(L"\u2600", -1, &font12, RectF(316.0f, 308.0f, 44.0f, 44.0f), &centerFormat, &textBrush);
-            }
+            // Close: [300, 308, 60, 44]
+            g.DrawString(L"\u2715", -1, &font12, RectF(300.0f, 308.0f, 60.0f, 44.0f), &centerFormat, &textBrush);
 
             // Outer border
             Pen borderPen(UI::gridColor(m_lightMode), 1.0f);

@@ -19,16 +19,24 @@ inline void logTest(const std::string& line) {
 class Classifier {
 public:
     static inline const std::vector<std::string> consumeSites = {
-        "x.com", "twitter.com", "youtube.com", "reddit.com", "instagram.com", "tiktok.com", "netflix.com"
+        "x.com", "twitter.com", "youtube.com", "reddit.com", "instagram.com", "tiktok.com",
+        "netflix.com", "linkedin.com", "twitch.tv", "facebook.com", "pinterest.com",
+        "hulu.com", "disneyplus.com", "threads.net"
     };
 
     static inline const std::vector<std::string> createSites = {
-        "figma.com", "docs.google.com", "canva.com", "github.com"
+        "figma.com", "docs.google.com", "canva.com", "github.com", "gitlab.com",
+        "stackoverflow.com", "chatgpt.com", "claude.ai", "notion.so", "linear.app",
+        "overleaf.com", "replit.com"
     };
 
     static inline const std::unordered_map<std::string, std::string> builtInApps = {
+        {"Antigravity.exe", "create"},
+        {"Paper.exe", "create"},
         {"devenv.exe", "create"},
         {"Code.exe", "create"},
+        {"Cursor.exe", "create"},
+        {"Zed.exe", "create"},
         {"idea64.exe", "create"},
         {"pycharm64.exe", "create"},
         {"webstorm64.exe", "create"},
@@ -48,6 +56,10 @@ public:
         {"Obsidian.exe", "create"},
         {"Notion.exe", "create"},
         {"WindowsTerminal.exe", "create"},
+        {"powershell.exe", "create"},
+        {"cmd.exe", "create"},
+        {"Slack.exe", "create"},
+        {"SnippingTool.exe", "create"},
         // macOS bundle IDs for compatibility
         {"com.apple.dt.Xcode", "create"},
         {"com.microsoft.VSCode", "create"},
@@ -65,7 +77,10 @@ public:
         {"Spotify.exe", "consume"},
         {"Video.UI.exe", "consume"},
         {"Steam.exe", "consume"},
+        {"EpicGamesLauncher.exe", "consume"},
         {"Discord.exe", "consume"},
+        {"Telegram.exe", "consume"},
+        {"explorer.exe", "consume"},
         {"com.apple.TV", "consume"},
         {"com.apple.iBooksX", "consume"},
         {"com.apple.news", "consume"}
@@ -97,7 +112,12 @@ public:
         // 1. Website classification and hostname boundaries
         assert(siteMode("x.com") == "consume");
         assert(siteMode("www.youtube.com") == "consume");
+        assert(siteMode("www.linkedin.com") == "consume");
         assert(siteMode("docs.google.com") == "create");
+        assert(siteMode("github.com") == "create");
+        assert(appMode("Antigravity.exe") == "create");
+        assert(appMode("Paper.exe") == "create");
+        assert(appMode("Steam.exe") == "consume");
         assert(siteMode("notx.com") == "");
         assert(siteMode("x.com.example.org") == "");
         logTest("PASS: website classification and hostname boundaries");
