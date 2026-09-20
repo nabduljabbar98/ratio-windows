@@ -13,6 +13,7 @@
 #include <vector>
 #include <functional>
 #include <cmath>
+#include "logger.hpp"
 
 inline std::wstring utf8ToWide(const std::string& str) {
     if (str.empty()) return L"";
@@ -72,6 +73,8 @@ public:
 
     void showNear(const RECT& anchorRect) {
         if (!m_hwnd) return;
+        m_showTime = GetTickCount();
+        Logger::log("RatioWindow::showNear called.");
 
         int width = static_cast<int>(360 * m_scale);
         int height = static_cast<int>(352 * m_scale);
@@ -86,6 +89,7 @@ public:
             int y = mi.rcWork.bottom - height - 16;
             SetWindowPos(m_hwnd, HWND_TOPMOST, x, y, width, height, SWP_SHOWWINDOW);
             SetForegroundWindow(m_hwnd);
+            SetActiveWindow(m_hwnd);
             m_visible = true;
             InvalidateRect(m_hwnd, NULL, FALSE);
             return;
@@ -111,12 +115,14 @@ public:
 
         SetWindowPos(m_hwnd, HWND_TOPMOST, x, y, width, height, SWP_SHOWWINDOW);
         SetForegroundWindow(m_hwnd);
+        SetActiveWindow(m_hwnd);
         m_visible = true;
         InvalidateRect(m_hwnd, NULL, FALSE);
     }
 
     void hide() {
         if (!m_hwnd || !m_visible) return;
+        Logger::log("RatioWindow::hide called.");
         ShowWindow(m_hwnd, SW_HIDE);
         m_visible = false;
         m_lastHideTime = GetTickCount();
@@ -124,7 +130,11 @@ public:
 
     void toggle(const RECT& anchorRect) {
         DWORD now = GetTickCount();
-        if (now - m_lastHideTime < 250) {
+        Logger::log("RatioWindow::toggle called. m_visible=" + std::string(m_visible ? "true" : "false") +
+                    " elapsed since show=" + std::to_string(now - m_showTime) +
+                    " elapsed since hide=" + std::to_string(now - m_lastHideTime));
+        if (now - m_lastHideTime < 300 || now - m_showTime < 300) {
+            Logger::log("RatioWindow::toggle debounced.");
             return;
         }
         if (m_visible) hide();
@@ -191,6 +201,7 @@ private:
     bool m_reviewingPending = false;
     int m_scrollOffset = 0;
     DWORD m_lastHideTime = 0;
+    DWORD m_showTime = 0;
 
     bool isInteractivePoint(int x, int y) {
         if (y >= 0 && y < 44) return true; // Tabs / Header
@@ -233,8 +244,14 @@ private:
     LRESULT WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         switch (msg) {
         case WM_ACTIVATE:
+            Logger::log("RatioWindow::WM_ACTIVATE wParam=" + std::to_string(wParam));
             if (LOWORD(wParam) == WA_INACTIVE) {
-                hide();
+                DWORD now = GetTickCount();
+                if (now - m_showTime > 300) {
+                    hide();
+                } else {
+                    Logger::log("RatioWindow::WM_ACTIVATE WA_INACTIVE ignored within 300ms grace period.");
+                }
             }
             return 0;
 

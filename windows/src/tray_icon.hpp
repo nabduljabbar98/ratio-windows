@@ -73,7 +73,14 @@ public:
         }
     }
 
+    DWORD m_lastMenuTime = 0;
     void showContextMenu(bool telemetryEnabled) {
+        DWORD now = GetTickCount();
+        if (now - m_lastMenuTime < 300) {
+            return;
+        }
+        m_lastMenuTime = now;
+
         POINT pt;
         GetCursorPos(&pt);
         HMENU hMenu = CreatePopupMenu();
