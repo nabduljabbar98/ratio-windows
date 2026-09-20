@@ -1,0 +1,59 @@
+name: Release Ratio for Windows
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and Release Windows Binaries
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build Ratio.exe
+        shell: cmd
+        run: |
+          windows\build.bat
+
+      - name: Package Release
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "windows\build\Ratio.exe", "windows\README.md", "LICENSE" -DestinationPath "windows\build\Ratio-v0.1.0-windows-x64.zip" -Force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Ratio for Windows v0.1.0"
+          tag_name: ${{ github.ref_name }}
+          files: |
+            windows/build/Ratio.exe
+            windows/build/Ratio-v0.1.0-windows-x64.zip
+          draft: false
+          prerelease: false
+          body: |
+            ## Ratio for Windows v0.1.0
+
+            Minimal, native Windows port of [Visualize Value's Ratio](https://ratio.visualizevalue.com).
+
+            ### Highlights
+            - **Prominent Pill Tray Badge**: High-contrast light blue badge with bold direction arrow and live percentage.
+            - **Automatic Theme Adaptation**: Seamlessly syncs with Windows Dark Mode and Light Mode in real-time.
+            - **Built-in Presets**: Pre-categorized defaults for YouTube, LinkedIn, Paper, Antigravity, VS Code, Figma, GitHub, and more.
+            - **Unified Categorization Dashboard**: In-row `[↑]` (Create) and `[↓]` (Consume) buttons with instant retrospective accounting.
+            - **30-Day History**: Daily create/consume ratio breakdown with proportional split bars.
+            - **Zero Dependencies**: Standalone 64-bit native C++ / Win32 / GDI+ executable.
+
+            ### Downloads
+            - **[Ratio.exe](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Ratio.exe)** - Standalone executable (download and run directly).
+            - **[Ratio-v0.1.0-windows-x64.zip](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Ratio-v0.1.0-windows-x64.zip)** - Zip archive containing Ratio.exe, README, and License.
