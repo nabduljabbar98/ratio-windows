@@ -284,7 +284,7 @@ public:
         int c = total > 0.0 ? static_cast<int>(std::round((ledger.create / total) * 100.0)) : 0;
         std::string state = paused ? "PAUSED" : (sleeping || idle ? "AWAY" : (mode == "create" ? "CREATING" : (mode == "consume" ? "CONSUMING" : "UNCLASSIFIED")));
         bool tracking = !paused && !sleeping && !idle;
-        std::wstring symbol = (paused || idle || sleeping) ? L"Ⅱ" : (mode == "create" ? L"↑" : (mode == "consume" ? L"↓" : L"?"));
+        std::wstring symbol = (paused || idle || sleeping) ? L"\u2161" : (mode == "create" ? L"\u2191" : (mode == "consume" ? L"\u2193" : L"?"));
 
         if (trayIcon) {
             trayIcon->update(symbol, c, 100 - c, state, activeName, tracking);

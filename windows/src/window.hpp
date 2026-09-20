@@ -14,6 +14,15 @@
 #include <functional>
 #include <cmath>
 
+inline std::wstring utf8ToWide(const std::string& str) {
+    if (str.empty()) return L"";
+    int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, NULL, 0);
+    if (len <= 1) return L"";
+    std::wstring w(len - 1, 0);
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &w[0], len);
+    return w;
+}
+
 class RatioWindow {
 public:
     std::function<void(const std::string&)> onChooseMode;
@@ -481,7 +490,7 @@ private:
                     SolidBrush darkTxt(Color(255, 30, 30, 30));
                     g.DrawString(countText.c_str(), -1, &font10Bold, RectF(324.0f, 12.0f, 20.0f, 20.0f), &centerFormat, &darkTxt);
                 } else {
-                    g.DrawString(L"✓", -1, &font12, RectF(324.0f, 12.0f, 20.0f, 20.0f), &centerFormat, &grayBrush);
+                    g.DrawString(L"\u2713", -1, &font12, RectF(324.0f, 12.0f, 20.0f, 20.0f), &centerFormat, &grayBrush);
                 }
             }
 
@@ -509,7 +518,7 @@ private:
                         g.FillRectangle(&createBrush, 96.0f, (REAL)y + 20.0f, (REAL)(150.0 * frac), 4.0f);
 
                         int eCreate = eTotal > 0.0 ? static_cast<int>(std::round(frac * 100.0)) : 0;
-                        std::wstring rText = eTotal > 0.0 ? (std::to_wstring(eCreate) + L"/" + std::to_wstring(100 - eCreate)) : L"—/—";
+                        std::wstring rText = eTotal > 0.0 ? (std::to_wstring(eCreate) + L"/" + std::to_wstring(100 - eCreate)) : L"\u2014/\u2014";
                         SolidBrush* rColor = (eTotal == 0.0) ? &textBrush : (eCreate >= 50 ? &createBrush : &consumeBrush);
                         g.DrawString(rText.c_str(), -1, &font12, RectF(260.0f, (REAL)y + 12.0f, 84.0f, 20.0f), &rightFormat, rColor);
 
@@ -521,18 +530,18 @@ private:
                 // RATIO VIEW
                 // Status Header (44..88)
                 std::string liveStr = tracking ? "TRACKING" : state;
-                std::wstring wLive(liveStr.begin(), liveStr.end());
+                std::wstring wLive = utf8ToWide(liveStr);
                 g.DrawString(wLive.c_str(), -1, &font12, RectF(16.0f, 44.0f, 160.0f, 44.0f), &leftFormat, &grayBrush);
 
                 double totalAppSeconds = 0.0;
                 for (const auto& [k, v] : led.apps) totalAppSeconds += v.seconds;
-                std::wstring wDur(formatDuration(totalAppSeconds).begin(), formatDuration(totalAppSeconds).end());
+                std::wstring wDur = utf8ToWide(formatDuration(totalAppSeconds));
                 g.DrawString(wDur.c_str(), -1, &font12, RectF(180.0f, 44.0f, 84.0f, 44.0f), &rightFormat, &grayBrush);
 
                 UI::drawHairline(g, 0.0f, 88.0f, 360.0f, 1.0f, m_lightMode);
 
                 // Big Ratio Number (88..180)
-                std::wstring ratioStr = total > 0.0 ? (std::to_wstring(c) + L" / " + std::to_wstring(100 - c)) : L"— / —";
+                std::wstring ratioStr = total > 0.0 ? (std::to_wstring(c) + L" / " + std::to_wstring(100 - c)) : L"\u2014 / \u2014";
                 g.DrawString(ratioStr.c_str(), -1, &font48, RectF(0.0f, 95.0f, 360.0f, 65.0f), &centerFormat, &textBrush);
 
                 // Split percentage line (at Y = 175)
@@ -541,22 +550,19 @@ private:
                 g.FillRectangle(&createBrush, 0.0f, 175.0f, (REAL)(360.0 * frac), 2.0f);
 
                 // Percentage labels (180..210)
-                char bufCreate[32], bufConsume[32];
-                snprintf(bufCreate, sizeof(bufCreate), "↑ %.2f%% CREATING", total > 0.0 ? (led.create / total * 100.0) : 0.0);
-                snprintf(bufConsume, sizeof(bufConsume), "↓ %.2f%% CONSUMING", total > 0.0 ? (led.consume / total * 100.0) : 0.0);
-                std::wstring wCreate(bufCreate, bufCreate + strlen(bufCreate));
-                std::wstring wConsume(bufConsume, bufConsume + strlen(bufConsume));
-                g.DrawString(wCreate.c_str(), -1, &font12, RectF(16.0f, 185.0f, 160.0f, 20.0f), &leftFormat, &createBrush);
-                g.DrawString(wConsume.c_str(), -1, &font12, RectF(180.0f, 185.0f, 164.0f, 20.0f), &rightFormat, &consumeBrush);
+                wchar_t bufCreate[64], bufConsume[64];
+                swprintf_s(bufCreate, L"\u2191 %.2f%% CREATING", total > 0.0 ? (led.create / total * 100.0) : 0.0);
+                swprintf_s(bufConsume, L"\u2193 %.2f%% CONSUMING", total > 0.0 ? (led.consume / total * 100.0) : 0.0);
+                g.DrawString(bufCreate, -1, &font12, RectF(16.0f, 185.0f, 160.0f, 20.0f), &leftFormat, &createBrush);
+                g.DrawString(bufConsume, -1, &font12, RectF(180.0f, 185.0f, 164.0f, 20.0f), &rightFormat, &consumeBrush);
 
                 UI::drawHairline(g, 0.0f, 215.0f, 360.0f, 1.0f, m_lightMode);
 
                 // Explanatory Note (215..264)
-                std::string noteStr = m_paused ? "Tracking paused. Click Resume to count." :
-                    (m_sleeping || m_idle ? "Away · counting resumes with activity." :
-                    (curMode.empty() ? "App time is counting. Choose a mode to include it in your ratio." :
-                    state + " · time updates every second.\nClick a mode to correct it."));
-                std::wstring wNote(noteStr.begin(), noteStr.end());
+                std::wstring wNote = m_paused ? L"Tracking paused. Click Resume to count." :
+                    (m_sleeping || m_idle ? L"Away \u00B7 counting resumes with activity." :
+                    (curMode.empty() ? L"App time is counting. Choose a mode to include it in your ratio." :
+                    utf8ToWide(state) + L" \u00B7 time updates every second.\nClick a mode to correct it."));
                 g.DrawString(wNote.c_str(), -1, &font12, RectF(16.0f, 220.0f, 328.0f, 40.0f), &leftFormat, &textBrush);
 
                 UI::drawHairline(g, 0.0f, 264.0f, 360.0f, 1.0f, m_lightMode);
@@ -564,12 +570,12 @@ private:
                 // Mode Buttons (264..308)
                 SolidBrush createBg(curMode == "create" ? UI::selectionBackground(m_lightMode) : UI::panelBackground(m_lightMode));
                 g.FillRectangle(&createBg, 0.0f, 264.0f, 180.0f, 44.0f);
-                g.DrawString(L"↑ CREATE", -1, &font12Bold, RectF(0.0f, 264.0f, 180.0f, 44.0f), &centerFormat, 
+                g.DrawString(L"\u2191 CREATE", -1, &font12Bold, RectF(0.0f, 264.0f, 180.0f, 44.0f), &centerFormat, 
                              curMode == "create" ? &createBrush : &textBrush);
 
                 SolidBrush consumeBg(curMode == "consume" ? UI::selectionBackground(m_lightMode) : UI::panelBackground(m_lightMode));
                 g.FillRectangle(&consumeBg, 180.0f, 264.0f, 180.0f, 44.0f);
-                g.DrawString(L"↓ CONSUME", -1, &font12Bold, RectF(180.0f, 264.0f, 180.0f, 44.0f), &centerFormat,
+                g.DrawString(L"\u2193 CONSUME", -1, &font12Bold, RectF(180.0f, 264.0f, 180.0f, 44.0f), &centerFormat,
                              curMode == "consume" ? &consumeBrush : &textBrush);
 
                 UI::drawHairline(g, 180.0f, 264.0f, 1.0f, 44.0f, m_lightMode);
@@ -587,11 +593,10 @@ private:
 
                 for (const auto& [key, usage] : pending) {
                     if (y >= 44 && y < 308) {
-                        std::string name = usage.name + (key == actID ? " ·" : "");
-                        std::wstring wName(name.begin(), name.end());
+                        std::wstring wName = utf8ToWide(usage.name + (key == actID ? " \u00B7" : ""));
                         g.DrawString(wName.c_str(), -1, &font12, RectF(16.0f, (REAL)y + 10.0f, 220.0f, 20.0f), &leftFormat, &textBrush);
 
-                        std::wstring wDur(formatDuration(usage.seconds).begin(), formatDuration(usage.seconds).end());
+                        std::wstring wDur = utf8ToWide(formatDuration(usage.seconds));
                         g.DrawString(wDur.c_str(), -1, &font12, RectF(240.0f, (REAL)y + 10.0f, 104.0f, 20.0f), &rightFormat, &textBrush);
 
                         // Relative progress bar
@@ -626,23 +631,23 @@ private:
                             assignedMode = Classifier::siteMode(key.substr(5));
                         }
 
-                        std::wstring wName(usage.name.begin(), usage.name.end());
+                        std::wstring wName = utf8ToWide(usage.name);
                         SolidBrush* nameColor = assignedMode.empty() ? &unclassifiedBrush : &textBrush;
                         g.DrawString(wName.c_str(), -1, &font12, RectF(16.0f, (REAL)y + 12.0f, 140.0f, 20.0f), &leftFormat, nameColor);
 
-                        std::wstring wDur(formatDuration(usage.seconds).begin(), formatDuration(usage.seconds).end());
+                        std::wstring wDur = utf8ToWide(formatDuration(usage.seconds));
                         g.DrawString(wDur.c_str(), -1, &font12, RectF(156.0f, (REAL)y + 12.0f, 108.0f, 20.0f), &rightFormat, &textBrush);
 
                         // ↑ Create button [272, y, 44, 44]
                         SolidBrush btnCreateBg(assignedMode == "create" ? UI::selectionBackground(m_lightMode) : UI::panelBackground(m_lightMode));
                         g.FillRectangle(&btnCreateBg, 272.0f, (REAL)y, 44.0f, 44.0f);
-                        g.DrawString(L"↑", -1, &font12Bold, RectF(272.0f, (REAL)y, 44.0f, 44.0f), &centerFormat,
+                        g.DrawString(L"\u2191", -1, &font12Bold, RectF(272.0f, (REAL)y, 44.0f, 44.0f), &centerFormat,
                                      assignedMode == "create" ? &createBrush : &grayBrush);
 
                         // ↓ Consume button [316, y, 44, 44]
                         SolidBrush btnConsumeBg(assignedMode == "consume" ? UI::selectionBackground(m_lightMode) : UI::panelBackground(m_lightMode));
                         g.FillRectangle(&btnConsumeBg, 316.0f, (REAL)y, 44.0f, 44.0f);
-                        g.DrawString(L"↓", -1, &font12Bold, RectF(316.0f, (REAL)y, 44.0f, 44.0f), &centerFormat,
+                        g.DrawString(L"\u2193", -1, &font12Bold, RectF(316.0f, (REAL)y, 44.0f, 44.0f), &centerFormat,
                                      assignedMode == "consume" ? &consumeBrush : &grayBrush);
 
                         UI::drawHairline(g, 272.0f, (REAL)y, 1.0f, 44.0f, m_lightMode);
@@ -657,7 +662,7 @@ private:
             UI::drawHairline(g, 0.0f, 308.0f, 360.0f, 1.0f, m_lightMode);
 
             // Pause: [0, 308, 44, 44]
-            g.DrawString(m_paused ? L"▶" : L"Ⅱ", -1, &font12, RectF(0.0f, 308.0f, 44.0f, 44.0f), &centerFormat, &textBrush);
+            g.DrawString(m_paused ? L"\u25B6" : L"\u2161", -1, &font12, RectF(0.0f, 308.0f, 44.0f, 44.0f), &centerFormat, &textBrush);
             UI::drawHairline(g, 44.0f, 308.0f, 1.0f, 44.0f, m_lightMode);
 
             // History: [44, 308, 44, 44]
@@ -680,7 +685,7 @@ private:
             if (m_lightMode) {
                 UI::drawWebMoon(g, RectF(316.0f, 308.0f, 44.0f, 44.0f), UI::panelText(m_lightMode));
             } else {
-                g.DrawString(L"☀", -1, &font12, RectF(316.0f, 308.0f, 44.0f, 44.0f), &centerFormat, &textBrush);
+                g.DrawString(L"\u2600", -1, &font12, RectF(316.0f, 308.0f, 44.0f, 44.0f), &centerFormat, &textBrush);
             }
 
             // Outer 1 physical pixel border

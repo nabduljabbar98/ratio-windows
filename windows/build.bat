@@ -55,14 +55,14 @@ if errorlevel 1 (
 )
 
 echo Compiling Ratio.exe (Windows Tray GUI App)...
-cl.exe /nologo /std:c++17 /O2 /W3 /EHsc /DUNICODE /D_UNICODE /DNOMINMAX /I res /I src "src\main.cpp" /Fo"build\\" /Fe"build\Ratio.exe" "build\resource.res" /link /SUBSYSTEM:WINDOWS
+cl.exe /nologo /utf-8 /std:c++17 /O2 /W3 /EHsc /DUNICODE /D_UNICODE /DNOMINMAX /I res /I src "src\main.cpp" /Fo"build\\" /Fe"build\Ratio.exe" "build\resource.res" /link /SUBSYSTEM:WINDOWS
 if errorlevel 1 (
     echo ERROR: Build of Ratio.exe failed.
     exit /b 1
 )
 
 echo Compiling RatioTest.exe (Console Self-Test Runner)...
-cl.exe /nologo /std:c++17 /O2 /W3 /EHsc /DNOMINMAX /I src "src\test_main.cpp" /Fo"build\\" /Fe"build\RatioTest.exe" /link /SUBSYSTEM:CONSOLE
+cl.exe /nologo /utf-8 /std:c++17 /O2 /W3 /EHsc /DNOMINMAX /I src "src\test_main.cpp" /Fo"build\\" /Fe"build\RatioTest.exe" /link /SUBSYSTEM:CONSOLE
 if errorlevel 1 (
     echo ERROR: Build of RatioTest.exe failed.
     exit /b 1

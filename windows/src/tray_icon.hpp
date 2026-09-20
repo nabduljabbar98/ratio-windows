@@ -130,9 +130,9 @@ private:
 
         // Color based on symbol
         Color color(255, 240, 240, 240); // Bright white
-        if (symbol == L"↑") color = Color(255, 40, 205, 65);       // Vivid green
-        else if (symbol == L"↓") color = Color(255, 255, 59, 48);   // Vivid red
-        else if (symbol == L"?") color = Color(255, 255, 159, 10);  // Vivid orange
+        if (symbol == L"↑" || symbol == L"\u2191") color = Color(255, 40, 205, 65);       // Vivid green
+        else if (symbol == L"↓" || symbol == L"\u2193") color = Color(255, 255, 59, 48);   // Vivid red
+        else if (symbol == L"?" || symbol == L"\u003F") color = Color(255, 255, 159, 10);  // Vivid orange
         else if (!tracking) color = Color(255, 180, 180, 180);      // Neutral light gray
 
         SolidBrush brush(color);
