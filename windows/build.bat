@@ -21,6 +21,18 @@ if exist "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxi
     set "VCVARS=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
 )
 
+:: Fallback to vswhere locator if not in default paths
+if "%VCVARS%"=="" (
+    set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+    if exist "!VSWHERE!" (
+        for /f "usebackq delims=" %%i in (`"!VSWHERE!" -latest -products * -property installationPath`) do (
+            if exist "%%i\VC\Auxiliary\Build\vcvars64.bat" (
+                set "VCVARS=%%i\VC\Auxiliary\Build\vcvars64.bat"
+            )
+        )
+    )
+)
+
 if "%VCVARS%"=="" (
     echo ERROR: Visual Studio 2022 C++ tools not found.
     exit /b 1
