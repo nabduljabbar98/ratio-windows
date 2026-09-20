@@ -334,18 +334,22 @@ static LRESULT CALLBACK MsgWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
         }
         return 0;
 
-    case WM_TRAYICON:
-        if (lParam == WM_LBUTTONUP) {
+    case WM_TRAYICON: {
+        UINT uMsg = LOWORD(lParam);
+        if (lParam == WM_LBUTTONUP || uMsg == WM_LBUTTONUP || uMsg == NIN_SELECT || uMsg == NIN_KEYSELECT) {
+            Logger::log("Tray icon clicked (left click / select). Toggling flyout...");
             if (g_app && g_app->ratioWindow) {
-                RECT trayRect = g_app->trayIcon->getTrayIconRect();
+                RECT trayRect = g_app->trayIcon ? g_app->trayIcon->getTrayIconRect() : RECT{0,0,0,0};
                 g_app->ratioWindow->toggle(trayRect);
             }
-        } else if (lParam == WM_RBUTTONUP) {
+        } else if (lParam == WM_RBUTTONUP || uMsg == WM_RBUTTONUP || uMsg == WM_CONTEXTMENU) {
+            Logger::log("Tray icon right-clicked. Showing context menu...");
             if (g_app && g_app->trayIcon) {
                 g_app->trayIcon->showContextMenu(g_app->telemetryEnabled);
             }
         }
         return 0;
+    }
 
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
