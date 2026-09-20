@@ -10,6 +10,7 @@
 #define ID_TRAY_EXIT 2001
 #define ID_TRAY_UPDATES 2002
 #define ID_TRAY_TELEMETRY 2003
+#define ID_TRAY_AUTOSTART 2004
 
 class TrayIcon {
 public:
@@ -74,7 +75,7 @@ public:
     }
 
     DWORD m_lastMenuTime = 0;
-    void showContextMenu(bool telemetryEnabled) {
+    void showContextMenu(bool telemetryEnabled, bool autostartEnabled) {
         DWORD now = GetTickCount();
         if (now - m_lastMenuTime < 300) {
             return;
@@ -86,6 +87,9 @@ public:
         HMENU hMenu = CreatePopupMenu();
         AppendMenuW(hMenu, MF_STRING, ID_TRAY_UPDATES, L"Check for Updates…");
         
+        UINT autoFlags = MF_STRING | (autostartEnabled ? MF_CHECKED : MF_UNCHECKED);
+        AppendMenuW(hMenu, autoFlags, ID_TRAY_AUTOSTART, L"Start with Windows");
+
         UINT telFlags = MF_STRING | (telemetryEnabled ? MF_CHECKED : MF_UNCHECKED);
         AppendMenuW(hMenu, telFlags, ID_TRAY_TELEMETRY, L"Share Anonymous Total");
         

@@ -16,6 +16,7 @@
 #include "tray_icon.hpp"
 #include "window.hpp"
 #include "logger.hpp"
+#include "autostart.hpp"
 
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -345,7 +346,7 @@ static LRESULT CALLBACK MsgWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
         } else if (uMsg == WM_CONTEXTMENU || uMsg == WM_RBUTTONUP) {
             Logger::log("Tray icon context menu (uMsg=" + std::to_string(uMsg) + "). Showing menu...");
             if (g_app && g_app->trayIcon) {
-                g_app->trayIcon->showContextMenu(g_app->telemetryEnabled);
+                g_app->trayIcon->showContextMenu(g_app->telemetryEnabled, AutostartManager::isAutostartEnabled());
             }
         }
         return 0;
@@ -355,6 +356,9 @@ static LRESULT CALLBACK MsgWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
         switch (LOWORD(wParam)) {
         case ID_TRAY_EXIT:
             DestroyWindow(hwnd);
+            return 0;
+        case ID_TRAY_AUTOSTART:
+            AutostartManager::setAutostart(!AutostartManager::isAutostartEnabled());
             return 0;
         case ID_TRAY_UPDATES:
             MessageBoxW(hwnd, L"Ratio is up to date.", L"Ratio Updates", MB_OK | MB_ICONINFORMATION);
@@ -444,6 +448,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR lpCmdLine, int) {
     Logger::log("Loaded data. Ledger day: " + app.ledger.day + ", rules count: " + std::to_string(app.rules.size()));
     app.rollover();
     app.save();
+
+    // Ensure automatic tracking whenever desktop/Windows starts
+    if (!AutostartManager::isAutostartEnabled()) {
+        AutostartManager::setAutostart(true);
+    }
 
     s_uTaskbarRestart = RegisterWindowMessageW(L"TaskbarCreated");
 
