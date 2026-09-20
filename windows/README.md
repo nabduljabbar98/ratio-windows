@@ -8,20 +8,28 @@ This is a native C++ (Win32 + GDI+) port of Visualize Value's macOS application,
 
 ---
 
+## Direct Downloads (v0.1.0)
+
+- 🚀 **[Download Ratio.exe (Standalone Executable)](https://github.com/nabduljabbar98/ratio-windows/raw/release/windows/build/Ratio.exe)**
+- 📦 **[Download Ratio-v0.1.0-windows-x64.zip](https://github.com/nabduljabbar98/ratio-windows/raw/release/windows/build/Ratio-v0.1.0-windows-x64.zip)**
+
+---
+
 ## Features
 
-- **System Tray Presence**: Shows live status arrow (`↑`, `↓`, `Ⅱ`, `?`) and tooltip directly in the Windows taskbar system tray.
-- **Minimalist Popover UI**: Custom-rendered 360×352 px window anchored to the system tray icon, featuring Visualize Value's brutalist hairline aesthetic, monospaced typography, and vector glyphs (Moon, History Clock, Back Arrow).
+- **Prominent Pill Taskbar Badge**: Renders an illuminated, high-contrast light blue pill badge (`#E0EEFD`) directly in your taskbar with the live direction arrow (`↑`, `↓`, `?`) and current ratio percentage in bold dark text.
+- **Automatic Theme Adaptation**: Seamlessly syncs with Windows Dark Mode and Light Mode in real-time, responding dynamically to Windows system theme changes without restarting.
+- **Out-of-the-Box Presets**: Pre-categorized for common tools:
+  - *Create*: Paper, Antigravity, VS Code, Cursor, Zed, Visual Studio, Figma, Notion, Obsidian, Office, Slack, Terminal.
+  - *Consume*: YouTube, LinkedIn, X/Twitter, Reddit, Instagram, TikTok, Netflix, Twitch, Steam, Discord.
+- **Unified Categorize Dashboard**: Direct in-row `[↑]` (Create) and `[↓]` (Consume) buttons with instant retrospective accounting.
+- **30-Day History**: Daily create/consume ratio breakdown with proportional split bars.
 - **Foreground Tracking**: Records active time exclusively for the frontmost application.
-- **Browser Tab Tracking**: Automatically detects active website hostnames from Google Chrome, Microsoft Edge, Brave, and Mozilla Firefox via Windows UI Automation COM API.
-- **Strict Privacy**: Only domain hostnames (`x.com`, `figma.com`, `docs.google.com`) are ever stored. URL paths, queries, search terms, and window titles are never collected or retained.
-- **Idle Detection**: Automatically halts accounting after 60 seconds of user inactivity (mouse/keyboard) and marks status as `AWAY`.
-- **Session & Power Integration**: Pauses tracking on workstation lock (`Win + L`) or system sleep/suspend, and cleanly resumes on unlock/wake.
-- **Retrospective Recategorization**: Classifying an app or website immediately moves all accrued time for today into that category without double-counting.
-- **Daily History**: Automatically records daily summaries at midnight, retaining a rolling 30-day balance.
-- **Undoable Reset**: Resetting tracking includes an 8-second grace period with an `UNDO` option to protect against accidental resets.
-- **Dark & Light Mode**: Seamlessly switch between dark and light themes with the Moon/Sun toggle.
-- **Zero Dependencies**: Pure native Win32/C++ executable with no runtime installers, Electron, Python, or .NET dependencies required.
+- **Browser Tab Tracking**: Automatically detects active website hostnames from Google Chrome, Microsoft Edge, Brave, and Mozilla Firefox via Windows UI Automation.
+- **Strict Privacy**: Only domain hostnames (`youtube.com`, `linkedin.com`, `github.com`) are ever stored. URL paths, queries, search terms, and window titles are never collected or retained.
+- **Idle Detection**: Automatically halts accounting after 60 seconds of user inactivity.
+- **Session & Power Integration**: Pauses tracking on workstation lock (`Win + L`) or system sleep, and cleanly resumes on unlock/wake.
+- **Zero Dependencies**: Pure native Win32/C++ executable with zero external runtime requirements. Sub-500 KB standalone executable.
 
 ---
 

@@ -2,9 +2,17 @@
 
 Create more. Consume less.
 
-Ratio is a macOS menu-bar app that measures time in the active app or browser site, then lets you classify that time as creating or consuming. It shows the balance in the menu bar and keeps a local daily history.
+Ratio is a minimalist menu-bar and taskbar app that measures time in the active app or browser site, then lets you classify that time as creating or consuming. It shows the balance live in your taskbar tray and keeps a local daily history.
 
-## Get Ratio
+## Download for Windows (v0.1.0)
+
+Direct downloads for Windows 10 & 11 (64-bit, zero dependencies):
+- 🚀 **[Download Ratio.exe (Standalone Executable)](https://github.com/nabduljabbar98/ratio-windows/raw/release/windows/build/Ratio.exe)**
+- 📦 **[Download Ratio-v0.1.0-windows-x64.zip](https://github.com/nabduljabbar98/ratio-windows/raw/release/windows/build/Ratio-v0.1.0-windows-x64.zip)**
+
+*Just download and run `Ratio.exe`. It automatically lives in your taskbar system tray with a prominent status pill, tracks your active apps, and synchronizes with your Windows Dark/Light theme.*
+
+## Get Ratio (macOS)
 
 - **Signed app:** Buy the notarized, automatically updating build for $20 at [ratio.visualizevalue.com](https://ratio.visualizevalue.com/).
 - **Build it yourself:** Clone this repository and follow the instructions below.
